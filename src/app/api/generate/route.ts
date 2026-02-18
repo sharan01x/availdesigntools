@@ -7,9 +7,7 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY || '',
 });
 
-// Using a placeholder model - user will configure their preferred model
-// This uses Stability AI's Stable Video Diffusion as an example
-const MODEL = "stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438";
+const MODEL = 'google/veo-3';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,22 +20,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.REPLICATE_API_KEY) {
-      return NextResponse.json(
-        { success: false, error: 'Replicate API key not configured' },
-        { status: 500 }
-      );
-    }
-
-    // Create prediction
     const prediction = await replicate.predictions.create({
-      version: MODEL.split(':')[1],
+      model: MODEL,
       input: {
-        image: prompt, // SVD takes an image, but we'll adapt for text-to-video later
+        prompt: prompt,
       },
     });
 
-    // Poll for completion
     const videoUrl = await pollForCompletion(prediction.id);
 
     if (!videoUrl) {
@@ -65,14 +54,13 @@ export async function POST(request: NextRequest) {
 }
 
 async function pollForCompletion(predictionId: string): Promise<string | null> {
-  const maxAttempts = 60; // 5 minutes max (60 * 5 seconds)
-  const interval = 5000; // 5 seconds
+  const maxAttempts = 120;
+  const interval = 5000;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const prediction = await replicate.predictions.get(predictionId);
     
     if (prediction.status === 'succeeded') {
-      // Handle both string and array outputs
       const output = prediction.output;
       if (typeof output === 'string') {
         return output;
@@ -87,9 +75,8 @@ async function pollForCompletion(predictionId: string): Promise<string | null> {
       return null;
     }
     
-    // Wait before next poll
     await new Promise(resolve => setTimeout(resolve, interval));
   }
   
-  return null; // Timeout
+  return null;
 }
