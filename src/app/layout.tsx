@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Video Generator",
-  description: "Generate AI videos using Replicate",
+  title: "Avail Design Tools",
+  description: "A suite of AI-powered design tools including video and image generators",
 };
 
 export default function RootLayout({

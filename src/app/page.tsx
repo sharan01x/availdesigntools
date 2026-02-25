@@ -1,89 +1,60 @@
-'use client';
-
-import { useState } from 'react';
 import Link from 'next/link';
-import PromptInput from '@/components/PromptInput';
-import VideoPlayer from '@/components/VideoPlayer';
+const tools = [
+  {
+    name: 'Video Generator',
+    description: 'Generate cinematic AI videos from text prompts using Replicate models.',
+    href: '/video-generator',
+  },
+  {
+    name: 'Image Generator',
+    description: 'Create polished AI images with FLUX.2 Pro from a simple prompt.',
+    href: '/image-generator',
+  },
+];
 
 export default function Home() {
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleGenerate = async (prompt: string) => {
-    setIsLoading(true);
-    setError(null);
-    setVideoUrl(null);
-
-    try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to generate video');
-      }
-
-      setVideoUrl(data.videoUrl);
-      
-      await fetch('/api/videos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: `video-${Date.now()}.mp4`,
-          url: data.videoUrl,
-          size: 0,
-        }),
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+    <div className="min-h-screen bg-gradient-to-b from-white via-zinc-50 to-zinc-100 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-900">
+      <header className="border-b border-zinc-200/80 dark:border-zinc-800/80 bg-white/80 dark:bg-zinc-950/80 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-            Video Generator
-          </h1>
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Avail Design Tools</h1>
           <Link
             href="/gallery"
             className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
-            View Gallery →
+            Open Gallery →
           </Link>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-12">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">
-            Generate AI Videos
+        <section className="text-center mb-12">
+          <h2 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 mb-4">
+            AI Tools for Visual Creation
           </h2>
-          <p className="text-zinc-600 dark:text-zinc-400 max-w-xl mx-auto">
-            Enter a prompt and let AI create a video for you. 
-            Videos are generated using Replicate AI models.
+          <p className="text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
+            Pick a tool below. Avail Design Tools currently includes a video generator and an image generator,
+            with a shared gallery for everything you create.
           </p>
-        </div>
+        </section>
 
-        <div className="space-y-8">
-          <PromptInput onSubmit={handleGenerate} isLoading={isLoading} />
-
-          {error && (
-            <div className="max-w-2xl mx-auto p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-red-600 dark:text-red-400">{error}</p>
-            </div>
-          )}
-
-          <VideoPlayer videoUrl={videoUrl} isLoading={isLoading} />
-        </div>
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {tools.map((tool) => (
+            <article
+              key={tool.name}
+              className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-sm"
+            >
+              <h3 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-3">{tool.name}</h3>
+              <p className="text-zinc-600 dark:text-zinc-400 mb-6">{tool.description}</p>
+              <Link
+                href={tool.href}
+                className="inline-flex items-center text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+              >
+                Open Tool →
+              </Link>
+            </article>
+          ))}
+        </section>
       </main>
     </div>
   );

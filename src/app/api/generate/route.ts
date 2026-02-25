@@ -9,6 +9,18 @@ const replicate = new Replicate({
 
 const MODEL = 'google/veo-3';
 
+function extractVideoUrl(output: unknown): string | null {
+  if (typeof output === 'string') {
+    return output;
+  }
+
+  if (Array.isArray(output) && output.length > 0 && typeof output[0] === 'string') {
+    return output[0];
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { prompt } = await request.json();
@@ -27,19 +39,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const videoUrl = await pollForCompletion(prediction.id);
-
-    if (!videoUrl) {
-      return NextResponse.json(
-        { success: false, error: 'Video generation timed out or failed' },
-        { status: 500 }
-      );
-    }
-
     return NextResponse.json({
       success: true,
-      videoUrl,
       predictionId: prediction.id,
+      status: prediction.status,
     });
   } catch (error) {
     console.error('Error generating video:', error);
@@ -53,30 +56,74 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function pollForCompletion(predictionId: string): Promise<string | null> {
-  const maxAttempts = 120;
-  const interval = 5000;
+export async function GET(request: NextRequest) {
+  const predictionId = request.nextUrl.searchParams.get('predictionId');
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const prediction = await replicate.predictions.get(predictionId);
-    
-    if (prediction.status === 'succeeded') {
-      const output = prediction.output;
-      if (typeof output === 'string') {
-        return output;
-      }
-      if (Array.isArray(output) && output.length > 0) {
-        return output[0];
-      }
-      return null;
-    }
-    
-    if (prediction.status === 'failed' || prediction.status === 'canceled') {
-      return null;
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, interval));
+  if (!predictionId) {
+    return NextResponse.json(
+      { success: false, error: 'predictionId is required' },
+      { status: 400 }
+    );
   }
-  
-  return null;
+
+  try {
+    const prediction = await replicate.predictions.get(predictionId);
+
+    if (prediction.status === 'succeeded') {
+      const videoUrl = extractVideoUrl(prediction.output);
+
+      if (!videoUrl) {
+        return NextResponse.json(
+          { success: false, error: 'Video generated but output URL was missing' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        status: prediction.status,
+        videoUrl,
+        predictionId,
+      });
+    }
+
+    if (prediction.status === 'failed') {
+      return NextResponse.json(
+        {
+          success: false,
+          status: prediction.status,
+          error: prediction.error || 'Video generation failed',
+          predictionId,
+        },
+        { status: 500 }
+      );
+    }
+
+    if (prediction.status === 'canceled') {
+      return NextResponse.json(
+        {
+          success: false,
+          status: prediction.status,
+          error: 'Video generation was canceled',
+          predictionId,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      status: prediction.status,
+      predictionId,
+    });
+  } catch (error) {
+    console.error('Error checking prediction status:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      },
+      { status: 500 }
+    );
+  }
 }

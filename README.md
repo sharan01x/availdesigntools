@@ -1,11 +1,13 @@
-# Video Generator
+# Avail Design Tools
 
-A Next.js web application that generates AI videos using the Replicate API.
+A Next.js web application that provides a suite of AI design tools powered by the Replicate API.
 
 ## Features
 
+- **Tool Hub**: Landing page listing all available tools
 - **AI Video Generation**: Enter a text prompt and generate videos using Replicate's AI models
-- **Video Gallery**: View all your generated videos in a gallery
+- **AI Image Generation**: Enter a text prompt and generate images with `black-forest-labs/flux-2-pro`
+- **Shared Gallery**: View all your generated videos and images in one place
 - **Modern UI**: Clean, minimalist design with dark mode support
 - **Serverless API Routes**: Simple deployment on Vercel
 
@@ -36,7 +38,7 @@ cd video-generator
 npm install
 ```
 
-3. Set up environment variables:
+3. **Set up environment variables**:
 ```bash
 cp .env.example .env.local
 ```
@@ -44,6 +46,11 @@ cp .env.example .env.local
 Edit `.env.local` and add your Replicate API key:
 ```
 REPLICATE_API_KEY=your_api_key_here
+```
+
+Optional (if you want to host the reference image elsewhere):
+```
+FLUX_REFERENCE_IMAGE_URL=https://your-domain.com/path/to/sample-image.jpg
 ```
 
 Get your API key from: https://replicate.com/account
@@ -84,17 +91,38 @@ npm run deploy
 
 ## Usage
 
-1. **Generate a Video**:
-   - Go to the home page
+1. **Pick a Tool**:
+   - Go to the home page (`/`) to see all available tools
+
+2. **Generate a Video**:
+   - Open `/video-generator`
    - Enter a description of the video you want
    - Click "Generate Video"
    - Wait for the AI to generate your video
 
-2. **View Gallery**:
-   - Click "View Gallery" to see all your generated videos
+3. **Generate an Image**:
+   - Open `/image-generator`
+   - Enter the image intent in the **Purpose** box
+   - Click **Generate Prompt** to auto-fill the **Prompt** box using Gemini
+     (you can still edit the generated prompt manually)
+   - Place a reference sample image at `public/reference/sample-image.jpg`
+     (or set `FLUX_REFERENCE_IMAGE_URL`)
+   - Choose whether **Branded** mode is on/off:
+     - **On**: applies `PROMPT_STYLE_GUIDE` and sends the reference image
+     - **Off**: sends only your prompt without branding additions
+   - Select output size:
+     - `1:1 (500x500)`
+     - `1:1 (1000x1000)`
+     - `HD Landscape (1920x1080)`
+     - `HD Portrait (1080x1920)`
+   - Click "Generate Image"
+
+4. **View Gallery**:
+   - Open `/gallery` to see all generated videos and images
 
 ## Important Notes
 
 - Update `src/app/api/generate/route.ts` to use your preferred video model
-- Videos are stored in memory and will be lost on deployment
-- For production, consider using a database or object storage for persistent video metadata
+- Update `src/app/api/generate-image/route.ts` to use your preferred image model
+- Generated items are stored in memory and will be lost on deployment/restart
+- For production, consider using a database or object storage for persistent media metadata
