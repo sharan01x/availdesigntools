@@ -9,19 +9,18 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY || '',
 });
 
-const MODEL = 'black-forest-labs/flux-2-pro';
+const MODEL = 'xai/grok-imagine-image';
 const DEFAULT_REFERENCE_IMAGE_PATH = 'reference/sample-image.jpg';
 const PROMPT_STYLE_GUIDE =
-  'Styling: A minimalist, two‑tone halftone print in the style of vintage screen‑printed posters. Use only a flat, highly saturated royal blue background and pure white for the subject and any effects. The subject is rendered entirely with circular halftone dots that vary in size to indicate shading and form, with no smooth gradients and no additional colors. Dots are dense in the mid‑tones and shadows and become smaller and more sparse toward lit areas, creating a soft fade into the blue background where details disappear. No outlines, no line art, no black ink, no texture other than the halftone dots. The background is a completely flat blue field with large areas of empty space. Very clean, crisp edges, bold, high‑contrast, print‑ready look.';
+  'Photorealistic subject detail with strict graphic tonal rendering. Duotone image using only white and #006BF4. Solid flat #006BF4 background. All shadows and midtones must be created exclusively using clearly visible halftone dot patterns in #006BF4 over white. No smooth gradients. No soft tonal blending. No airbrushing. No grayscale shading. Large, visible circular dot matrix with variable dot size to create depth (newspaper-style screen print effect). High-contrast lighting. Crisp edges. Sharp focus. Modern bold photographic poster aesthetic with mandatory halftone dithering.';
 
 type ImageSizeOption = 'square_500' | 'square_1000' | 'landscape_hd' | 'portrait_hd';
-type FluxResolution = '0.5 MP' | '1 MP' | '2 MP' | '4 MP';
 
-const IMAGE_SIZE_PRESETS: Record<ImageSizeOption, { aspectRatio: string; resolution: FluxResolution }> = {
-  square_500: { aspectRatio: '1:1', resolution: '0.5 MP' },
-  square_1000: { aspectRatio: '1:1', resolution: '1 MP' },
-  landscape_hd: { aspectRatio: '16:9', resolution: '2 MP' },
-  portrait_hd: { aspectRatio: '9:16', resolution: '2 MP' },
+const IMAGE_SIZE_PRESETS: Record<ImageSizeOption, { aspectRatio: string }> = {
+  square_500: { aspectRatio: '1:1' },
+  square_1000: { aspectRatio: '1:1' },
+  landscape_hd: { aspectRatio: '16:9' },
+  portrait_hd: { aspectRatio: '9:16' },
 };
 
 function getMimeTypeForReferenceImage(filePath: string): string {
@@ -40,7 +39,7 @@ function getMimeTypeForReferenceImage(filePath: string): string {
 }
 
 async function buildReferenceImageInput(): Promise<string> {
-  const envReferenceUrl = process.env.FLUX_REFERENCE_IMAGE_URL?.trim();
+  const envReferenceUrl = process.env.GROK_REFERENCE_IMAGE_URL?.trim() || process.env.FLUX_REFERENCE_IMAGE_URL?.trim();
 
   if (envReferenceUrl) {
     return envReferenceUrl;
@@ -54,7 +53,7 @@ async function buildReferenceImageInput(): Promise<string> {
     return `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
   } catch {
     throw new Error(
-      `Reference image not found. Add a file at public/${DEFAULT_REFERENCE_IMAGE_PATH} or set FLUX_REFERENCE_IMAGE_URL.`
+      `Reference image not found. Add a file at public/${DEFAULT_REFERENCE_IMAGE_PATH} or set GROK_REFERENCE_IMAGE_URL.`
     );
   }
 }
@@ -129,17 +128,13 @@ export async function POST(request: NextRequest) {
       ? `${prompt.trim()}\n\nStyle instructions: ${PROMPT_STYLE_GUIDE}`
       : prompt.trim();
 
-    const inputImages = shouldApplyBranding ? [await buildReferenceImageInput()] : [];
+    const referenceImageInput = shouldApplyBranding ? await buildReferenceImageInput() : undefined;
 
     const output = await replicate.run(MODEL, {
       input: {
         prompt: finalPrompt,
-        resolution: selectedSize.resolution,
         aspect_ratio: selectedSize.aspectRatio,
-        input_images: inputImages,
-        output_format: 'webp',
-        output_quality: 80,
-        safety_tolerance: 2,
+        ...(referenceImageInput ? { image: referenceImageInput } : {}),
       },
     });
 

@@ -41,6 +41,24 @@ export default function ImageGeneratorPage() {
   const [isBranded, setIsBranded] = useState(true);
   const [imageSize, setImageSize] = useState<ImageSizeOption>('square_500');
 
+  const handleSaveImage = async (processedImageUrl: string, size: number) => {
+    const response = await fetch('/api/images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: `image-${Date.now()}.webp`,
+        url: processedImageUrl,
+        size,
+      }),
+    });
+
+    const data = await parseApiResponse(response);
+
+    if (!response.ok || !data.success) {
+      throw new Error((data.error as string) || 'Failed to save image');
+    }
+  };
+
   const handleGeneratePrompt = async () => {
     if (!purpose.trim() || isGeneratingPrompt) {
       return;
@@ -106,16 +124,6 @@ export default function ImageGeneratorPage() {
 
       const generatedImageUrl = data.imageUrl as string;
       setImageUrl(generatedImageUrl);
-
-      await fetch('/api/images', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: `image-${Date.now()}.webp`,
-          url: generatedImageUrl,
-          size: 0,
-        }),
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -258,6 +266,8 @@ export default function ImageGeneratorPage() {
           <ImagePreview
             imageUrl={imageUrl}
             isLoading={isGeneratingImage}
+            isBranded={isBranded}
+            onSaveToGallery={handleSaveImage}
             aspectRatioClass={IMAGE_PREVIEW_ASPECT[imageSize]}
           />
         </div>
