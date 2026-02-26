@@ -35,7 +35,7 @@ export default function PromptInput({
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={placeholder}
           maxLength={500}
-          className="w-full h-32 p-4 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          className="brand-focus w-full h-32 p-4 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none"
         />
         {additionalControls}
         <div className="flex justify-between items-center">
@@ -45,7 +45,7 @@ export default function PromptInput({
           <button
             type="submit"
             disabled={!prompt.trim() || isLoading}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+            className="brand-button px-6 py-3 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium rounded-lg"
           >
             {isLoading ? 'Generating...' : submitLabel}
           </button>

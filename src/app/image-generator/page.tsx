@@ -127,17 +127,19 @@ export default function ImageGeneratorPage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Image Generator</h1>
+          <a href="https://availproject.org" target="_blank" rel="noopener noreferrer" aria-label="Visit Avail Project website">
+            <img src="/images/AvailLogoWorkdmarkBlue.svg" alt="Avail Design Tools" className="h-8 w-auto" />
+          </a>
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              className="brand-link"
             >
               All Tools
             </Link>
             <Link
               href="/gallery"
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              className="brand-link"
             >
               View Gallery →
             </Link>
@@ -165,14 +167,14 @@ export default function ImageGeneratorPage() {
                 onChange={(e) => setPurpose(e.target.value)}
                 placeholder="Describe what this image is for (e.g., a homepage hero, ad creative, social post)..."
                 maxLength={500}
-                className="w-full h-24 p-4 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="brand-focus w-full h-24 p-4 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none"
               />
               <div className="flex justify-end">
                 <button
                   type="button"
                   onClick={handleGeneratePrompt}
                   disabled={!purpose.trim() || isGeneratingPrompt}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                  className="brand-button px-6 py-3 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium rounded-lg"
                 >
                   {isGeneratingPrompt ? 'Generating Prompt...' : 'Generate Prompt'}
                 </button>
@@ -189,7 +191,7 @@ export default function ImageGeneratorPage() {
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Prompt for image composition will appear here, or type your own..."
                 maxLength={1000}
-                className="w-full h-32 p-4 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="brand-focus w-full h-32 p-4 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none"
               />
             </div>
 
@@ -202,7 +204,7 @@ export default function ImageGeneratorPage() {
                   aria-checked={isBranded}
                   onClick={() => setIsBranded((prev) => !prev)}
                   className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                    isBranded ? 'bg-blue-600' : 'bg-zinc-400 dark:bg-zinc-600'
+                    isBranded ? 'brand-toggle-on' : 'bg-zinc-400 dark:bg-zinc-600'
                   }`}
                 >
                   <span
@@ -221,7 +223,7 @@ export default function ImageGeneratorPage() {
                   id="image-size"
                   value={imageSize}
                   onChange={(e) => setImageSize(e.target.value as ImageSizeOption)}
-                  className="w-56 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="brand-focus w-56 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-zinc-900 dark:text-zinc-100"
                 >
                   <option value="square_500">1:1 (500x500)</option>
                   <option value="square_1000">1:1 (1000x1000)</option>
@@ -237,7 +239,7 @@ export default function ImageGeneratorPage() {
                 type="button"
                 onClick={handleGenerateImage}
                 disabled={!prompt.trim() || isGeneratingImage}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+                className="brand-button px-6 py-3 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium rounded-lg"
               >
                 {isGeneratingImage ? 'Generating...' : 'Generate Image'}
               </button>

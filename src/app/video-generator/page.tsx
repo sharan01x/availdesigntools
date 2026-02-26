@@ -102,17 +102,19 @@ export default function VideoGeneratorPage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Video Generator</h1>
+          <a href="https://availproject.org" target="_blank" rel="noopener noreferrer" aria-label="Visit Avail Project website">
+            <img src="/images/AvailLogoWorkdmarkBlue.svg" alt="Avail Design Tools" className="h-8 w-auto" />
+          </a>
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              className="brand-link"
             >
               All Tools
             </Link>
             <Link
               href="/gallery"
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              className="brand-link"
             >
               View Gallery →
             </Link>
