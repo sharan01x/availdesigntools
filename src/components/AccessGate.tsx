@@ -20,15 +20,19 @@ export default function AccessGate({ password }: AccessGateProps) {
       return;
     }
 
-    const hasAccess = window.sessionStorage.getItem(SESSION_KEY) === 'true';
+    const hasAccess = window.sessionStorage.getItem(SESSION_KEY) === expectedPassword;
     setIsOpen(!hasAccess);
+
+    if (!hasAccess) {
+      window.sessionStorage.removeItem(SESSION_KEY);
+    }
   }, [expectedPassword]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (enteredPassword === expectedPassword) {
-      window.sessionStorage.setItem(SESSION_KEY, 'true');
+    if (enteredPassword.trim() === expectedPassword) {
+      window.sessionStorage.setItem(SESSION_KEY, expectedPassword);
       setErrorMessage('');
       setEnteredPassword('');
       setIsOpen(false);
