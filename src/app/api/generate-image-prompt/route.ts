@@ -7,10 +7,13 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY || '',
 });
 
-const MODEL = 'google/gemini-3.1-pro';
+const MODEL = 'deepseek-ai/deepseek-v3.1';
 
 const PROMPT_GENERATOR_SYSTEM_INSTRUCTIONS = `You are an expert visual prompt writer.
-Given a short purpose statement, produce one high-quality image generation prompt.
+Given a short purpose statement or the text that the image needs to represent, produce one high-quality image generation prompt that would serve as a good representation of the core idea. It should include the following:
+- Composition details that include the camera angle which is directly in front and flat
+- A description of the image elements, making sure that the image is not too busy
+- A description of the image lighting as it needs to be cinematic
 Return only the final prompt text with no markdown, no labels, and no explanation.`;
 
 function extractTextOutput(output: unknown): string {
@@ -53,6 +56,8 @@ export async function POST(request: NextRequest) {
     const output = await replicate.run(MODEL, {
       input: {
         prompt: llmPrompt,
+        max_tokens: 220,
+        temperature: 0.4,
       },
     });
 

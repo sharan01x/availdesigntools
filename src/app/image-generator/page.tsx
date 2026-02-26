@@ -149,7 +149,7 @@ export default function ImageGeneratorPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-12">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Generate AI Images</h2>
+          <h2 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mb-4">Generate Images</h2>
           <p className="text-zinc-600 dark:text-zinc-400 max-w-xl mx-auto">
             Start with creating a prompt for the image you want to generate or go directly to providing an image generation prompt.
           </p>
@@ -195,6 +195,9 @@ export default function ImageGeneratorPage() {
               />
             </div>
 
+            <label htmlFor="purpose" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Parameters
+            </label>
             <div className="space-y-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
               <div className="flex items-center justify-between gap-4">
                 <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Branded</span>
@@ -225,10 +228,10 @@ export default function ImageGeneratorPage() {
                   onChange={(e) => setImageSize(e.target.value as ImageSizeOption)}
                   className="brand-focus w-56 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-zinc-900 dark:text-zinc-100"
                 >
-                  <option value="square_500">1:1 (500x500)</option>
-                  <option value="square_1000">1:1 (1000x1000)</option>
-                  <option value="landscape_hd">HD Landscape (1920x1080)</option>
-                  <option value="portrait_hd">HD Portrait (1080x1920)</option>
+                  <option value="square_500">Square (500x500)</option>
+                  <option value="square_1000">Square (1000x1000)</option>
+                  <option value="landscape_hd">Landscape (1920x1080)</option>
+                  <option value="portrait_hd">Portrait (1080x1920)</option>
                 </select>
               </div>
             </div>
