@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Replicate from 'replicate';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 
 export const runtime = 'nodejs';
 
@@ -9,54 +7,17 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY || '',
 });
 
-const MODEL = 'xai/grok-imagine-image';
-const DEFAULT_REFERENCE_IMAGE_PATH = 'reference/sample-image.jpg';
+const MODEL = 'xai/grok-2-image';
 const PROMPT_STYLE_GUIDE =
   'Photorealistic subject detail with strict graphic tonal rendering. Duotone image using only white and #006BF4. Solid flat #006BF4 background. All shadows and midtones must be created exclusively using clearly visible halftone dot patterns in #006BF4 over white. No smooth gradients. No soft tonal blending. No airbrushing. No grayscale shading. Large, visible circular dot matrix with variable dot size to create depth (newspaper-style screen print effect). High-contrast lighting. Crisp edges. Sharp focus. Modern bold photographic poster aesthetic with mandatory halftone dithering.';
 
-type ImageSizeOption = 'square_500' | 'square_1000' | 'landscape_hd' | 'portrait_hd';
+type ImageSizeOption = 'square_min' | 'landscape_hd' | 'portrait_hd';
 
-const IMAGE_SIZE_PRESETS: Record<ImageSizeOption, { aspectRatio: string }> = {
-  square_500: { aspectRatio: '1:1' },
-  square_1000: { aspectRatio: '1:1' },
-  landscape_hd: { aspectRatio: '16:9' },
-  portrait_hd: { aspectRatio: '9:16' },
+const IMAGE_SIZE_PRESETS: Record<ImageSizeOption, { promptHint: string }> = {
+  square_min: { promptHint: 'Compose for a 1:1 square output (minimum square format).' },
+  landscape_hd: { promptHint: 'Compose for a 16:9 HD landscape output (1920x1080).' },
+  portrait_hd: { promptHint: 'Compose for a 9:16 HD portrait output (1080x1920).' },
 };
-
-function getMimeTypeForReferenceImage(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-
-  switch (ext) {
-    case '.png':
-      return 'image/png';
-    case '.webp':
-      return 'image/webp';
-    case '.jpeg':
-    case '.jpg':
-    default:
-      return 'image/jpeg';
-  }
-}
-
-async function buildReferenceImageInput(): Promise<string> {
-  const envReferenceUrl = process.env.GROK_REFERENCE_IMAGE_URL?.trim() || process.env.FLUX_REFERENCE_IMAGE_URL?.trim();
-
-  if (envReferenceUrl) {
-    return envReferenceUrl;
-  }
-
-  const localReferencePath = path.join(process.cwd(), 'public', DEFAULT_REFERENCE_IMAGE_PATH);
-
-  try {
-    const imageBuffer = await readFile(localReferencePath);
-    const mimeType = getMimeTypeForReferenceImage(localReferencePath);
-    return `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
-  } catch {
-    throw new Error(
-      `Reference image not found. Add a file at public/${DEFAULT_REFERENCE_IMAGE_PATH} or set GROK_REFERENCE_IMAGE_URL.`
-    );
-  }
-}
 
 async function extractImageUrl(output: unknown): Promise<string | null> {
   if (typeof output === 'string') {
@@ -111,7 +72,7 @@ async function extractImageUrl(output: unknown): Promise<string | null> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, branded = true, imageSize = 'square_500' } = await request.json();
+    const { prompt, branded = true, imageSize = 'square_min' } = await request.json();
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ success: false, error: 'Prompt is required' }, { status: 400 });
@@ -120,21 +81,20 @@ export async function POST(request: NextRequest) {
     const selectedSize =
       typeof imageSize === 'string' && imageSize in IMAGE_SIZE_PRESETS
         ? IMAGE_SIZE_PRESETS[imageSize as ImageSizeOption]
-        : IMAGE_SIZE_PRESETS.square_500;
+        : IMAGE_SIZE_PRESETS.square_min;
 
     const shouldApplyBranding = branded !== false;
 
-    const finalPrompt = shouldApplyBranding
-      ? `${prompt.trim()}\n\nStyle instructions: ${PROMPT_STYLE_GUIDE}`
-      : prompt.trim();
-
-    const referenceImageInput = shouldApplyBranding ? await buildReferenceImageInput() : undefined;
+    const finalPrompt = [
+      prompt.trim(),
+      shouldApplyBranding ? `Style instructions: ${PROMPT_STYLE_GUIDE}` : null,
+      `Size instructions: ${selectedSize.promptHint}`,
+      'Output format: PNG.',
+    ].filter(Boolean).join('\n\n');
 
     const output = await replicate.run(MODEL, {
       input: {
         prompt: finalPrompt,
-        aspect_ratio: selectedSize.aspectRatio,
-        ...(referenceImageInput ? { image: referenceImageInput } : {}),
       },
     });
 

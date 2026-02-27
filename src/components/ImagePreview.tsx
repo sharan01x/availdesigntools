@@ -182,7 +182,7 @@ export default function ImagePreview({
       }
 
       outputCtx.putImageData(outImageData, 0, 0);
-      setProcessedImageUrl(canvas.toDataURL('image/webp', 0.95));
+      setProcessedImageUrl(canvas.toDataURL('image/png'));
       setRenderError(null);
     };
 
@@ -223,7 +223,7 @@ export default function ImagePreview({
 
     const link = document.createElement('a');
     link.href = displayImageUrl;
-    link.download = `image-${Date.now()}.webp`;
+    link.download = `image-${Date.now()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -4,11 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import ImagePreview from '@/components/ImagePreview';
 
-type ImageSizeOption = 'square_500' | 'square_1000' | 'landscape_hd' | 'portrait_hd';
+type ImageSizeOption = 'square_min' | 'landscape_hd' | 'portrait_hd';
 
 const IMAGE_PREVIEW_ASPECT: Record<ImageSizeOption, string> = {
-  square_500: 'aspect-square',
-  square_1000: 'aspect-square',
+  square_min: 'aspect-square',
   landscape_hd: 'aspect-[16/9]',
   portrait_hd: 'aspect-[9/16]',
 };
@@ -39,14 +38,14 @@ export default function ImageGeneratorPage() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBranded, setIsBranded] = useState(true);
-  const [imageSize, setImageSize] = useState<ImageSizeOption>('square_500');
+  const [imageSize, setImageSize] = useState<ImageSizeOption>('square_min');
 
   const handleSaveImage = async (processedImageUrl: string, size: number) => {
     const response = await fetch('/api/images', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        filename: `image-${Date.now()}.webp`,
+        filename: `image-${Date.now()}.png`,
         url: processedImageUrl,
         size,
       }),
@@ -236,8 +235,7 @@ export default function ImageGeneratorPage() {
                   onChange={(e) => setImageSize(e.target.value as ImageSizeOption)}
                   className="brand-focus w-56 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-zinc-900 dark:text-zinc-100"
                 >
-                  <option value="square_500">Square (500x500)</option>
-                  <option value="square_1000">Square (1000x1000)</option>
+                  <option value="square_min">Square (1:1 minimum)</option>
                   <option value="landscape_hd">Landscape (1920x1080)</option>
                   <option value="portrait_hd">Portrait (1080x1920)</option>
                 </select>
