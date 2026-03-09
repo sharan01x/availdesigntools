@@ -6,8 +6,8 @@ const tools = [
     href: '/image-generator',
   },
   {
-    name: 'Social Media Video Generator (Coming Soon)',
-    description: 'Generate cinematic AI videos from text prompts for use on the Avail Social media channels.',
+    name: 'Storyboard Generator',
+    description: 'Break down video concepts into visual storyboards with AI-generated shots and descriptions.',
     href: '/video-generator',
   },
 ];

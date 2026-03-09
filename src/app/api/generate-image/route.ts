@@ -7,16 +7,20 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY || '',
 });
 
-const MODEL = 'xai/grok-2-image';
+const MODEL = 'xai/grok-imagine-image';
+
 const PROMPT_STYLE_GUIDE =
   'Photorealistic subject detail with strict graphic tonal rendering. Duotone image using only white and #006BF4. Solid flat #006BF4 background. All shadows and midtones must be created exclusively using clearly visible halftone dot patterns in #006BF4 over white. No smooth gradients. No soft tonal blending. No airbrushing. No grayscale shading. Large, visible circular dot matrix with variable dot size to create depth (newspaper-style screen print effect). High-contrast lighting. Crisp edges. Sharp focus. Modern bold photographic poster aesthetic with mandatory halftone dithering.';
 
+const STORYBOARD_STYLE_GUIDE =
+  'Pencil sketch illustration style with soft pastel colors. Hand-drawn appearance with visible pencil strokes and cross-hatching. Light, delicate linework with gentle shading. Subtle pastel color accents (soft pinks, blues, yellows, greens) applied with a light touch. Cream or off-white paper background texture. Artistic, storyboard concept art aesthetic. Loose, expressive style rather than photorealistic. Warm, inviting feel suitable for visual storytelling.';
+
 type ImageSizeOption = 'square_min' | 'landscape_hd' | 'portrait_hd';
 
-const IMAGE_SIZE_PRESETS: Record<ImageSizeOption, { promptHint: string }> = {
-  square_min: { promptHint: 'Compose for a 1:1 square output (minimum square format).' },
-  landscape_hd: { promptHint: 'Compose for a 16:9 HD landscape output (1920x1080).' },
-  portrait_hd: { promptHint: 'Compose for a 9:16 HD portrait output (1080x1920).' },
+const ASPECT_RATIOS: Record<ImageSizeOption, string> = {
+  square_min: '1:1',
+  landscape_hd: '16:9',
+  portrait_hd: '9:16',
 };
 
 async function extractImageUrl(output: unknown): Promise<string | null> {
@@ -72,29 +76,33 @@ async function extractImageUrl(output: unknown): Promise<string | null> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, branded = true, imageSize = 'square_min' } = await request.json();
+    const { prompt, branded = true, imageSize = 'square_min', storyboard = false } = await request.json();
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ success: false, error: 'Prompt is required' }, { status: 400 });
     }
 
-    const selectedSize =
-      typeof imageSize === 'string' && imageSize in IMAGE_SIZE_PRESETS
-        ? IMAGE_SIZE_PRESETS[imageSize as ImageSizeOption]
-        : IMAGE_SIZE_PRESETS.square_min;
+    const aspectRatio =
+      typeof imageSize === 'string' && imageSize in ASPECT_RATIOS
+        ? ASPECT_RATIOS[imageSize as ImageSizeOption]
+        : ASPECT_RATIOS.square_min;
 
-    const shouldApplyBranding = branded !== false;
+    let styleGuide: string | null = null;
+    if (storyboard) {
+      styleGuide = STORYBOARD_STYLE_GUIDE;
+    } else if (branded !== false) {
+      styleGuide = PROMPT_STYLE_GUIDE;
+    }
 
     const finalPrompt = [
       prompt.trim(),
-      shouldApplyBranding ? `Style instructions: ${PROMPT_STYLE_GUIDE}` : null,
-      `Size instructions: ${selectedSize.promptHint}`,
-      'Output format: PNG.',
+      styleGuide ? `Style instructions: ${styleGuide}` : null,
     ].filter(Boolean).join('\n\n');
 
     const output = await replicate.run(MODEL, {
       input: {
         prompt: finalPrompt,
+        aspect_ratio: aspectRatio,
       },
     });
 
