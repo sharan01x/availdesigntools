@@ -259,12 +259,21 @@ export default function Gallery() {
                 <p className="text-zinc-600 dark:text-zinc-400">
                   No images generated yet.
                 </p>
-                <Link
-                  href="/image-generator"
-                  className="brand-link inline-block mt-4"
-                >
-                  Generate your first image →
-                </Link>
+                <div className="flex gap-4 justify-center mt-4">
+                  <Link
+                    href="/image-generator"
+                    className="brand-link"
+                  >
+                    Generate image →
+                  </Link>
+                  <span className="text-zinc-400">or</span>
+                  <Link
+                    href="/pixel-generator"
+                    className="brand-link"
+                  >
+                    Create pixel icon →
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

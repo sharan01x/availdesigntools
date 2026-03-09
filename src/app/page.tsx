@@ -6,6 +6,11 @@ const tools = [
     href: '/image-generator',
   },
   {
+    name: 'Pixel Generator',
+    description: 'Create pixel art icons from prompts, upload images, or draw manually with a built-in editor.',
+    href: '/pixel-generator',
+  },
+  {
     name: 'Storyboard Generator',
     description: 'Break down video concepts into visual storyboards with AI-generated shots and descriptions.',
     href: '/video-generator',
