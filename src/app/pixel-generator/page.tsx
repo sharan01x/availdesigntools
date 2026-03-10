@@ -191,7 +191,6 @@ function placeIconInGrid(iconData: string[], targetCols: number, targetRows: num
 // ═══════════════════════════════════════════
 type TabType = 'prompt' | 'upload';
 type ToolType = 'paint' | 'erase';
-type PromptMode = 'library' | 'ai';
 
 export default function PixelGeneratorPage() {
   // State
@@ -212,8 +211,6 @@ export default function PixelGeneratorPage() {
 
   // Prompt tab state
   const [promptInput, setPromptInput] = useState('');
-  const [promptMode, setPromptMode] = useState<PromptMode>('library');
-  const [apiKey, setApiKey] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -232,19 +229,6 @@ export default function PixelGeneratorPage() {
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Load API key from localStorage
-  useEffect(() => {
-    const savedKey = localStorage.getItem('anthropic_api_key') || '';
-    setApiKey(savedKey);
-  }, []);
-
-  // Save API key to localStorage
-  const handleApiKeyChange = (key: string) => {
-    setApiKey(key);
-    localStorage.setItem('anthropic_api_key', key);
-  };
 
   // Get shadow map
   const getShadowMap = useCallback((): boolean[][] => {
@@ -379,135 +363,15 @@ export default function PixelGeneratorPage() {
     setGrid(grid.map((row) => row.map(() => false)));
   };
 
-  // Generate from prompt
-  const handleGenerateFromPrompt = async () => {
-    const prompt = promptInput.trim();
-    if (!prompt) return;
-
-    setInfoMessage(null);
-    setErrorMessage(null);
-
-    if (promptMode === 'library') {
-      const match = matchIcon(prompt);
-      if (match) {
-        const newGrid = placeIconInGrid(match.data, cols, rows);
-        setGrid(newGrid);
-        setInfoMessage(`Matched: ${match.name}`);
-      } else {
-        setErrorMessage(`No match found for "${prompt}". Try Browse to see all available icons.`);
-      }
-    } else {
-      // AI mode
-      if (!apiKey.trim()) {
-        setErrorMessage('Add your Anthropic API key to use AI mode.');
-        return;
-      }
-
-      setIsGenerating(true);
-      try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1024,
-            system: `You are a pixel icon designer. Given a grid size (rows × cols) and an icon description, return a 2D JSON array of booleans. true = filled, false = empty. Center the icon. Keep shapes clean and recognizable at small sizes. Return ONLY valid JSON, no markdown or explanation. Just: [[true,false,...],...]`,
-            messages: [{ role: 'user', content: `Grid: ${rows} rows × ${cols} cols.\nIcon: ${prompt}` }],
-          }),
-        });
-
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err.error?.message || `API error ${response.status}`);
-        }
-
-        const data = await response.json();
-        const parsed = JSON.parse(data.content[0].text.trim());
-        const newGrid = Array.isArray(parsed[0]) ? parsed : parsed.grid;
-        if (!newGrid || !Array.isArray(newGrid[0])) {
-          throw new Error('Invalid grid format');
-        }
-
-        const newRows = newGrid.length;
-        const newCols = newGrid[0].length;
-        setRows(newRows);
-        setCols(newCols);
-        setGrid(newGrid.map((row: boolean[]) => row.map((v) => !!v)));
-        setInfoMessage('Generated with AI');
-      } catch (e) {
-        setErrorMessage(e instanceof Error ? e.message : 'An error occurred');
-      } finally {
-        setIsGenerating(false);
-      }
-    }
-  };
-
-  // Handle file upload
-  const handleFileUpload = (file: File) => {
-    if (!file.type.startsWith('image/') && !file.name.endsWith('.svg')) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        setLoadedImage(img);
-        setSourcePreview(e.target?.result as string);
-        autoDetectMode(img);
-        convertImage(img, uploadCols, uploadRows, threshold, detectMode, invertGrid);
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Auto detect mode
-  const autoDetectMode = (img: HTMLImageElement) => {
-    const canvas = document.createElement('canvas');
-    const sz = 64;
-    canvas.width = sz;
-    canvas.height = sz;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, sz, sz);
-    ctx.drawImage(img, 0, 0, sz, sz);
-    const data = ctx.getImageData(0, 0, sz, sz).data;
-
-    let hasTrans = false;
-    let totalA = 0;
-    let totalL = 0;
-    const px = sz * sz;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const a = data[i + 3];
-      totalA += a;
-      if (a < 240) hasTrans = true;
-      totalL += data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-    }
-
-    if (hasTrans && totalA / px < 200) {
-      setDetectMode('alpha');
-    } else {
-      setDetectMode(totalL / px > 180 ? 'dark' : 'luminance');
-    }
-  };
-
   // Convert image to grid
-  const convertImage = (
-    img: HTMLImageElement | null,
+  const convertImageToGrid = useCallback((
+    img: HTMLImageElement,
     targetCols: number,
     targetRows: number,
     thresh: number,
     mode: 'alpha' | 'luminance' | 'dark',
     invert: boolean
   ) => {
-    if (!img) return;
-
     const canvas = document.createElement('canvas');
     const sW = targetCols * 8;
     const sH = targetRows * 8;
@@ -582,6 +446,149 @@ export default function PixelGeneratorPage() {
     setCols(targetCols);
     setRows(targetRows);
     setGrid(newGrid);
+  }, []);
+
+  // Generate from prompt
+  const handleGenerateFromPrompt = async () => {
+    const prompt = promptInput.trim();
+    if (!prompt) return;
+
+    setInfoMessage(null);
+    setErrorMessage(null);
+
+    // First try library match
+    const match = matchIcon(prompt);
+    if (match) {
+      const newGrid = placeIconInGrid(match.data, cols, rows);
+      setGrid(newGrid);
+      setInfoMessage(`Matched: ${match.name}`);
+      return;
+    }
+
+    // If no library match, generate with AI
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `Simple pixel art icon of ${prompt}. Minimalist design, clean shapes, high contrast, black and white, suitable for small pixel grid conversion.`,
+          branded: false,
+          imageSize: 'square_min',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to generate image');
+      }
+
+      const imageUrl = data.imageUrl as string;
+
+      // Load the generated image and convert to grid
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        setLoadedImage(img);
+        setSourcePreview(imageUrl);
+        
+        // Auto-detect mode
+        const canvas = document.createElement('canvas');
+        const sz = 64;
+        canvas.width = sz;
+        canvas.height = sz;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+          ctx.clearRect(0, 0, sz, sz);
+          ctx.drawImage(img, 0, 0, sz, sz);
+          const imgData = ctx.getImageData(0, 0, sz, sz).data;
+
+          let hasTrans = false;
+          let totalA = 0;
+          let totalL = 0;
+          const px = sz * sz;
+
+          for (let i = 0; i < imgData.length; i += 4) {
+            const a = imgData[i + 3];
+            totalA += a;
+            if (a < 240) hasTrans = true;
+            totalL += imgData[i] * 0.299 + imgData[i + 1] * 0.587 + imgData[i + 2] * 0.114;
+          }
+
+          let mode: 'alpha' | 'luminance' | 'dark' = 'luminance';
+          if (hasTrans && totalA / px < 200) {
+            mode = 'alpha';
+          } else {
+            mode = totalL / px > 180 ? 'dark' : 'luminance';
+          }
+          setDetectMode(mode);
+          convertImageToGrid(img, cols, rows, threshold, mode, invertGrid);
+        }
+        
+        setInfoMessage('Generated with AI');
+        setIsGenerating(false);
+      };
+      
+      img.onerror = () => {
+        setErrorMessage('Failed to load generated image');
+        setIsGenerating(false);
+      };
+      
+      img.src = imageUrl;
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : 'An error occurred');
+      setIsGenerating(false);
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = (file: File) => {
+    if (!file.type.startsWith('image/') && !file.name.endsWith('.svg')) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        setLoadedImage(img);
+        setSourcePreview(e.target?.result as string);
+        
+        // Auto-detect mode
+        const canvas = document.createElement('canvas');
+        const sz = 64;
+        canvas.width = sz;
+        canvas.height = sz;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, sz, sz);
+        ctx.drawImage(img, 0, 0, sz, sz);
+        const data = ctx.getImageData(0, 0, sz, sz).data;
+
+        let hasTrans = false;
+        let totalA = 0;
+        let totalL = 0;
+        const px = sz * sz;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const a = data[i + 3];
+          totalA += a;
+          if (a < 240) hasTrans = true;
+          totalL += data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+        }
+
+        let mode: 'alpha' | 'luminance' | 'dark' = 'luminance';
+        if (hasTrans && totalA / px < 200) {
+          mode = 'alpha';
+        } else {
+          mode = totalL / px > 180 ? 'dark' : 'luminance';
+        }
+        setDetectMode(mode);
+        convertImageToGrid(img, uploadCols, uploadRows, threshold, mode, invertGrid);
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   // Export functions
@@ -807,34 +814,6 @@ export default function PixelGeneratorPage() {
             </div>
 
             <div className="flex items-center justify-center gap-4 flex-wrap">
-              <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
-                <button
-                  onClick={() => setPromptMode('library')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    promptMode === 'library'
-                      ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm'
-                      : 'text-zinc-600 dark:text-zinc-400'
-                  }`}
-                >
-                  Library{' '}
-                  <span className="ml-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded text-[10px]">
-                    FREE
-                  </span>
-                </button>
-                <button
-                  onClick={() => setPromptMode('ai')}
-                  className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    promptMode === 'ai'
-                      ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 shadow-sm'
-                      : 'text-zinc-600 dark:text-zinc-400'
-                  }`}
-                >
-                  AI{' '}
-                  <span className="ml-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px]">
-                    API
-                  </span>
-                </button>
-              </div>
               <button
                 onClick={() => setShowBrowseModal(true)}
                 className="text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
@@ -843,42 +822,23 @@ export default function PixelGeneratorPage() {
               </button>
             </div>
 
-            {promptMode === 'ai' && (
-              <div className="flex gap-2 items-center">
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => handleApiKeyChange(e.target.value)}
-                  placeholder="Anthropic API key (sk-ant-...)"
-                  className="flex-1 px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <span
-                  className={`text-xs ${apiKey ? 'text-green-500' : 'text-zinc-500'}`}
-                >
-                  {apiKey ? '✓ Key saved' : 'No key'}
-                </span>
-              </div>
-            )}
-
-            {promptMode === 'library' && (
-              <div className="flex gap-2 flex-wrap justify-center">
-                <span className="text-xs text-zinc-500">Try:</span>
-                {['play', 'heart', 'star', 'lightning', 'check', 'lock', 'arrow right', 'B', '7', 'home', 'gear', 'wifi'].map(
-                  (example) => (
-                    <button
-                      key={example}
-                      onClick={() => {
-                        setPromptInput(example);
-                        setTimeout(() => handleGenerateFromPrompt(), 0);
-                      }}
-                      className="px-3 py-1 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-zinc-600 dark:text-zinc-400 hover:border-blue-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
-                    >
-                      {example}
-                    </button>
-                  )
-                )}
-              </div>
-            )}
+            <div className="flex gap-2 flex-wrap justify-center">
+              <span className="text-xs text-zinc-500">Try:</span>
+              {['play', 'heart', 'star', 'lightning', 'check', 'lock', 'arrow right', 'B', '7', 'home', 'gear', 'wifi'].map(
+                (example) => (
+                  <button
+                    key={example}
+                    onClick={() => {
+                      setPromptInput(example);
+                      setTimeout(() => handleGenerateFromPrompt(), 0);
+                    }}
+                    className="px-3 py-1 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-zinc-600 dark:text-zinc-400 hover:border-blue-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
+                  >
+                    {example}
+                  </button>
+                )
+              )}
+            </div>
 
             <div className="flex items-center justify-center gap-4">
               <div className="flex items-center gap-2">
@@ -969,7 +929,7 @@ export default function PixelGeneratorPage() {
                       onChange={(e) => {
                         const val = Math.max(3, Math.min(32, parseInt(e.target.value) || 3));
                         setUploadCols(val);
-                        convertImage(loadedImage, val, uploadRows, threshold, detectMode, invertGrid);
+                        if (loadedImage) convertImageToGrid(loadedImage, val, uploadRows, threshold, detectMode, invertGrid);
                       }}
                       min={3}
                       max={32}
@@ -982,7 +942,7 @@ export default function PixelGeneratorPage() {
                       onChange={(e) => {
                         const val = Math.max(3, Math.min(32, parseInt(e.target.value) || 3));
                         setUploadRows(val);
-                        convertImage(loadedImage, uploadCols, val, threshold, detectMode, invertGrid);
+                        if (loadedImage) convertImageToGrid(loadedImage, uploadCols, val, threshold, detectMode, invertGrid);
                       }}
                       min={3}
                       max={32}
@@ -997,7 +957,7 @@ export default function PixelGeneratorPage() {
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
                         setThreshold(val);
-                        convertImage(loadedImage, uploadCols, uploadRows, val, detectMode, invertGrid);
+                        if (loadedImage) convertImageToGrid(loadedImage, uploadCols, uploadRows, val, detectMode, invertGrid);
                       }}
                       min={1}
                       max={99}
@@ -1012,7 +972,7 @@ export default function PixelGeneratorPage() {
                       onChange={(e) => {
                         const val = e.target.value as 'alpha' | 'luminance' | 'dark';
                         setDetectMode(val);
-                        convertImage(loadedImage, uploadCols, uploadRows, threshold, val, invertGrid);
+                        if (loadedImage) convertImageToGrid(loadedImage, uploadCols, uploadRows, threshold, val, invertGrid);
                       }}
                       className="px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
@@ -1027,7 +987,7 @@ export default function PixelGeneratorPage() {
                       checked={invertGrid}
                       onChange={(e) => {
                         setInvertGrid(e.target.checked);
-                        convertImage(loadedImage, uploadCols, uploadRows, threshold, detectMode, e.target.checked);
+                        if (loadedImage) convertImageToGrid(loadedImage, uploadCols, uploadRows, threshold, detectMode, e.target.checked);
                       }}
                       className="rounded"
                     />
@@ -1288,8 +1248,6 @@ export default function PixelGeneratorPage() {
             </div>
           </div>
         )}
-
-        <canvas ref={canvasRef} className="hidden" />
       </main>
 
       {/* Browse Modal */}
