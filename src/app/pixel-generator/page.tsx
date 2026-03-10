@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 
 // ═══════════════════════════════════════════
-// ICON LIBRARY — 5x7 pixel font + symbols
+// ICON LIBRARY — Letters, Numbers, Symbols
 // ═══════════════════════════════════════════
+
+// Uppercase letters (5x7)
 const LETTERS: Record<string, string[]> = {
   A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
   B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
@@ -35,6 +37,96 @@ const LETTERS: Record<string, string[]> = {
   Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
 };
 
+// Lowercase letters (5x7)
+const LOWERCASE: Record<string, string[]> = {
+  a: ['00000', '00000', '01110', '00001', '01111', '10001', '01111'],
+  b: ['10000', '10000', '10110', '11001', '10001', '10001', '11110'],
+  c: ['00000', '00000', '01110', '10001', '10000', '10001', '01110'],
+  d: ['00001', '00001', '01101', '10011', '10001', '10011', '01101'],
+  e: ['00000', '00000', '01110', '10001', '11111', '10000', '01110'],
+  f: ['00110', '01001', '01000', '11100', '01000', '01000', '01000'],
+  g: ['00000', '01111', '10001', '10001', '01111', '00001', '01110'],
+  h: ['10000', '10000', '10110', '11001', '10001', '10001', '10001'],
+  i: ['00100', '00000', '01100', '00100', '00100', '00100', '01110'],
+  j: ['00010', '00000', '00110', '00010', '00010', '10010', '01100'],
+  k: ['10000', '10000', '10010', '10100', '11100', '10010', '10001'],
+  l: ['01100', '00100', '00100', '00100', '00100', '00100', '01110'],
+  m: ['00000', '00000', '11010', '10101', '10101', '10001', '10001'],
+  n: ['00000', '00000', '10110', '11001', '10001', '10001', '10001'],
+  o: ['00000', '00000', '01110', '10001', '10001', '10001', '01110'],
+  p: ['00000', '11110', '10001', '10001', '11110', '10000', '10000'],
+  q: ['00000', '01101', '10011', '10001', '01111', '00001', '00001'],
+  r: ['00000', '00000', '10110', '11001', '10000', '10000', '10000'],
+  s: ['00000', '00000', '01111', '11000', '00011', '10001', '01110'],
+  t: ['01000', '01000', '11100', '01000', '01000', '01001', '00110'],
+  u: ['00000', '00000', '10001', '10001', '10001', '10011', '01101'],
+  v: ['00000', '00000', '10001', '10001', '10001', '01010', '00100'],
+  w: ['00000', '00000', '10001', '10001', '10101', '10101', '01010'],
+  x: ['00000', '00000', '10001', '01010', '00100', '01010', '10001'],
+  y: ['00000', '10001', '10001', '01111', '00001', '10001', '01110'],
+  z: ['00000', '00000', '11111', '00010', '00100', '01000', '11111'],
+};
+
+// Bold letters (5x7, thicker strokes)
+const BOLD_LETTERS: Record<string, string[]> = {
+  A: ['01110', '11011', '11011', '11111', '11011', '11011', '11011'],
+  B: ['11110', '11011', '11011', '11110', '11011', '11011', '11110'],
+  C: ['01110', '11011', '11000', '11000', '11000', '11011', '01110'],
+  D: ['11100', '11010', '11011', '11011', '11011', '11010', '11100'],
+  E: ['11111', '11000', '11000', '11110', '11000', '11000', '11111'],
+  F: ['11111', '11000', '11000', '11110', '11000', '11000', '11000'],
+  G: ['01110', '11011', '11000', '11011', '11011', '11011', '01110'],
+  H: ['11011', '11011', '11011', '11111', '11011', '11011', '11011'],
+  I: ['11111', '01100', '01100', '01100', '01100', '01100', '11111'],
+  J: ['00111', '00011', '00011', '00011', '00011', '11011', '01110'],
+  K: ['11011', '11010', '11100', '11100', '11100', '11010', '11011'],
+  L: ['11000', '11000', '11000', '11000', '11000', '11000', '11111'],
+  M: ['11011', '11111', '11111', '11111', '11011', '11011', '11011'],
+  N: ['11011', '11111', '11111', '11011', '11011', '11011', '11011'],
+  O: ['01110', '11011', '11011', '11011', '11011', '11011', '01110'],
+  P: ['11110', '11011', '11011', '11110', '11000', '11000', '11000'],
+  Q: ['01110', '11011', '11011', '11011', '11011', '11110', '01111'],
+  R: ['11110', '11011', '11011', '11110', '11110', '11010', '11011'],
+  S: ['01111', '11000', '11000', '01110', '00011', '00011', '11110'],
+  T: ['11111', '01100', '01100', '01100', '01100', '01100', '01100'],
+  U: ['11011', '11011', '11011', '11011', '11011', '11011', '01110'],
+  V: ['11011', '11011', '11011', '11011', '11011', '01110', '00100'],
+  W: ['11011', '11011', '11011', '11111', '11111', '11111', '11011'],
+  X: ['11011', '11011', '01110', '00100', '01110', '11011', '11011'],
+  Y: ['11011', '11011', '01110', '00100', '00100', '00100', '00100'],
+  Z: ['11111', '00011', '00110', '01100', '01100', '11000', '11111'],
+};
+
+// Outline letters (5x7, hollow)
+const OUTLINE_LETTERS: Record<string, string[]> = {
+  A: ['01110', '10001', '10001', '10001', '11111', '10001', '10001'],
+  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
+  C: ['01110', '10001', '10000', '10000', '10000', '10001', '01110'],
+  D: ['11100', '10010', '10001', '10001', '10001', '10010', '11100'],
+  E: ['11111', '10000', '10000', '11100', '10000', '10000', '11111'],
+  F: ['11111', '10000', '10000', '11100', '10000', '10000', '10000'],
+  G: ['01110', '10001', '10000', '10111', '10001', '10001', '01110'],
+  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
+  I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+  J: ['00111', '00010', '00010', '00010', '00010', '10010', '01100'],
+  K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
+  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+  Q: ['01110', '10001', '10001', '10101', '10010', '01101', '00001'],
+  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+  V: ['10001', '10001', '10001', '10001', '01010', '01010', '00100'],
+  W: ['10001', '10001', '10101', '10101', '10101', '11011', '10001'],
+  X: ['10001', '10001', '01010', '00100', '01010', '10001', '10001'],
+  Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
+  Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
+};
+
 const NUMBERS: Record<string, string[]> = {
   '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
   '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
@@ -48,58 +140,173 @@ const NUMBERS: Record<string, string[]> = {
   '9': ['01110', '10001', '10001', '01111', '00001', '10001', '01110'],
 };
 
+// Bold numbers
+const BOLD_NUMBERS: Record<string, string[]> = {
+  '0': ['01110', '11011', '11011', '11011', '11011', '11011', '01110'],
+  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  '2': ['01110', '11011', '00011', '00110', '01100', '11000', '11111'],
+  '3': ['01110', '11011', '00011', '00110', '00011', '11011', '01110'],
+  '4': ['00010', '00110', '01110', '11010', '11111', '00010', '00010'],
+  '5': ['11111', '11000', '11110', '00011', '00011', '11011', '01110'],
+  '6': ['01110', '11000', '11110', '11011', '11011', '11011', '01110'],
+  '7': ['11111', '00011', '00110', '01100', '01100', '01100', '01100'],
+  '8': ['01110', '11011', '11011', '01110', '11011', '11011', '01110'],
+  '9': ['01110', '11011', '11011', '01111', '00011', '00011', '01110'],
+};
+
+// Dice faces (5x5)
+const DICE: Record<string, string[]> = {
+  '1': ['00000', '00000', '00100', '00000', '00000'],
+  '2': ['10000', '00000', '00100', '00000', '00001'],
+  '3': ['10000', '00000', '00100', '00000', '00001'],
+  '4': ['10001', '00000', '00000', '00000', '10001'],
+  '5': ['10001', '00000', '00100', '00000', '10001'],
+  '6': ['10001', '00000', '10001', '00000', '10001'],
+};
+
 interface SymbolData {
   data: string[];
   tags: string[];
+  category?: string;
 }
 
 const SYMBOLS: Record<string, SymbolData> = {
-  play: { data: ['010000', '011000', '011100', '011110', '011100', '011000', '010000'], tags: ['play', 'video', 'media', 'triangle', 'right', 'start'] },
-  pause: { data: ['110011', '110011', '110011', '110011', '110011', '110011', '110011'], tags: ['pause', 'media', 'stop'] },
-  heart: { data: ['0100010', '1110111', '1111111', '1111111', '0111110', '0011100', '0001000'], tags: ['heart', 'love', 'like', 'favorite', 'fav'] },
-  star: { data: ['0001000', '0001000', '1111111', '0111110', '0010100', '0101010', '1000001'], tags: ['star', 'favorite', 'rating', 'fav'] },
-  check: { data: ['0000000', '0000010', '0000100', '0001000', '1010000', '0100000', '0000000'], tags: ['check', 'checkmark', 'tick', 'done', 'complete', 'yes', 'correct', 'approve'] },
-  plus: { data: ['0001000', '0001000', '0001000', '1111111', '0001000', '0001000', '0001000'], tags: ['plus', 'add', 'new', 'create', 'positive'] },
-  close: { data: ['1000001', '0100010', '0010100', '0001000', '0010100', '0100010', '1000001'], tags: ['close', 'x', 'cancel', 'delete', 'remove', 'cross', 'multiply'] },
-  'arrow-r': { data: ['0001000', '0000100', '0000010', '1111111', '0000010', '0000100', '0001000'], tags: ['arrow right', 'right', 'forward', 'next', 'east'] },
-  'arrow-l': { data: ['0001000', '0010000', '0100000', '1111111', '0100000', '0010000', '0001000'], tags: ['arrow left', 'left', 'back', 'previous', 'west'] },
-  'arrow-u': { data: ['0001000', '0011100', '0101010', '1001001', '0001000', '0001000', '0001000'], tags: ['arrow up', 'up', 'north'] },
-  'arrow-d': { data: ['0001000', '0001000', '0001000', '1001001', '0101010', '0011100', '0001000'], tags: ['arrow down', 'down', 'south', 'download'] },
-  lightning: { data: ['0001100', '0011000', '0110000', '1111100', '0001100', '0011000', '0100000'], tags: ['lightning', 'bolt', 'flash', 'power', 'energy', 'electric', 'thunder', 'zap'] },
-  lock: { data: ['0011100', '0100010', '0100010', '1111111', '1101011', '1101011', '1111111'], tags: ['lock', 'secure', 'locked', 'security', 'password', 'private'] },
-  unlock: { data: ['0011100', '0100010', '0000010', '1111111', '1101011', '1101011', '1111111'], tags: ['unlock', 'unlocked', 'open'] },
-  home: { data: ['0001000', '0011100', '0111110', '1111111', '0110110', '0110110', '0111110'], tags: ['home', 'house', 'building', 'main'] },
-  search: { data: ['0111000', '1000100', '1000100', '1000100', '0111000', '0001100', '0000010'], tags: ['search', 'magnify', 'find', 'zoom', 'lookup', 'lens'] },
-  gear: { data: ['0101010', '0111110', '1110111', '0100010', '1110111', '0111110', '0101010'], tags: ['gear', 'settings', 'config', 'preferences', 'cog', 'options'] },
-  wifi: { data: ['0111110', '1000001', '0011100', '0100010', '0001000', '0000000', '0001000'], tags: ['wifi', 'wireless', 'signal', 'network', 'internet', 'connection'] },
-  download: { data: ['0001000', '0001000', '0001000', '0101010', '0010100', '0001000', '1111111'], tags: ['download', 'save', 'export'] },
-  upload: { data: ['0001000', '0010100', '0101010', '0001000', '0001000', '0001000', '1111111'], tags: ['upload', 'import', 'share'] },
-  eye: { data: ['0000000', '0011100', '0100010', '1001001', '0100010', '0011100', '0000000'], tags: ['eye', 'view', 'visible', 'show', 'watch', 'see', 'preview'] },
-  mail: { data: ['0000000', '1111111', '1100011', '1010101', '1001001', '1000001', '1111111'], tags: ['mail', 'email', 'envelope', 'message', 'inbox', 'letter'] },
-  bell: { data: ['0001000', '0011100', '0011100', '0100010', '0100010', '1111111', '0001000'], tags: ['bell', 'notification', 'alert', 'alarm', 'ring'] },
-  shield: { data: ['1111111', '1000001', '1000001', '1000001', '0100010', '0010100', '0001000'], tags: ['shield', 'security', 'protect', 'safe', 'guard', 'defense'] },
-  flag: { data: ['1100000', '1111100', '1111100', '1111100', '1100000', '1000000', '1000000'], tags: ['flag', 'report', 'bookmark', 'mark'] },
-  cursor: { data: ['1000000', '1100000', '1010000', '1001000', '1111100', '0001100', '0000100'], tags: ['cursor', 'pointer', 'mouse', 'click', 'select'] },
-  menu: { data: ['0000000', '1111111', '0000000', '1111111', '0000000', '1111111', '0000000'], tags: ['menu', 'hamburger', 'bars', 'navigation', 'nav', 'list'] },
-  refresh: { data: ['0011110', '0100001', '0100000', '0000000', '0000010', '1000010', '0111100'], tags: ['refresh', 'reload', 'sync', 'rotate', 'update'] },
-  power: { data: ['0001000', '0001000', '0100010', '1000001', '1000001', '0100010', '0011100'], tags: ['power', 'on', 'off', 'shutdown', 'switch', 'toggle'] },
-  sun: { data: ['0100010', '0011100', '1111111', '0111110', '1111111', '0011100', '0100010'], tags: ['sun', 'light', 'bright', 'day', 'weather'] },
-  moon: { data: ['0011100', '0100000', '1000000', '1000000', '1000000', '0100000', '0011100'], tags: ['moon', 'dark', 'night', 'sleep', 'crescent'] },
-  cloud: { data: ['0000000', '0011100', '0100010', '1100011', '1111111', '1111111', '0000000'], tags: ['cloud', 'weather', 'storage', 'sky', 'upload'] },
-  link: { data: ['0011100', '0100010', '0100000', '0011100', '0000010', '0100010', '0011100'], tags: ['link', 'chain', 'url', 'connect', 'href', 'anchor'] },
-  key: { data: ['0011000', '0100100', '0011000', '0001000', '0001100', '0001000', '0001100'], tags: ['key', 'password', 'access', 'auth', 'token'] },
-  pin: { data: ['0011100', '0100010', '0100010', '0100010', '0011100', '0001000', '0001000'], tags: ['pin', 'location', 'map', 'place', 'marker', 'gps'] },
-  user: { data: ['0011100', '0100010', '0100010', '0011100', '0000000', '0111110', '1000001'], tags: ['user', 'person', 'profile', 'account', 'avatar', 'people'] },
-  folder: { data: ['1110000', '1001111', '1000001', '1000001', '1000001', '1000001', '1111111'], tags: ['folder', 'directory', 'files', 'dir'] },
-  file: { data: ['1111100', '1000110', '1000011', '1000001', '1000001', '1000001', '1111111'], tags: ['file', 'document', 'page', 'doc', 'paper'] },
-  trash: { data: ['0111110', '1111111', '0100010', '0101010', '0101010', '0100010', '0111110'], tags: ['trash', 'delete', 'bin', 'garbage', 'remove', 'waste'] },
-  code: { data: ['0010010', '0100100', '1001000', '0100100', '0010010', '0000000', '0000000'], tags: ['code', 'brackets', 'dev', 'programming', 'terminal', 'script'] },
-  music: { data: ['0000110', '0000101', '0000100', '0000100', '0110100', '1001100', '0110000'], tags: ['music', 'note', 'audio', 'sound', 'song'] },
-  camera: { data: ['0100100', '1111111', '1000001', '1011101', '1010101', '1011101', '1111111'], tags: ['camera', 'photo', 'picture', 'image', 'snapshot'] },
-  bookmark: { data: ['1111111', '1000001', '1000001', '1000001', '1010101', '1101011', '1000001'], tags: ['bookmark', 'save', 'tag', 'label'] },
-  phone: { data: ['0111110', '0100010', '0100010', '0100010', '0100010', '0111110', '0111110'], tags: ['phone', 'mobile', 'call', 'device', 'smartphone'] },
-  database: { data: ['0111110', '1111111', '0111110', '0100010', '0111110', '1111111', '0111110'], tags: ['database', 'db', 'storage', 'data', 'server', 'cylinder'] },
-  stop: { data: ['0000000', '0111110', '0111110', '0111110', '0111110', '0111110', '0000000'], tags: ['stop', 'square', 'halt', 'end'] },
+  // Media
+  play: { data: ['010000', '011000', '011100', '011110', '011100', '011000', '010000'], tags: ['play', 'video', 'media', 'triangle', 'right', 'start'], category: 'Media' },
+  pause: { data: ['110011', '110011', '110011', '110011', '110011', '110011', '110011'], tags: ['pause', 'media', 'stop'], category: 'Media' },
+  stop: { data: ['0000000', '0111110', '0111110', '0111110', '0111110', '0111110', '0000000'], tags: ['stop', 'square', 'halt', 'end', 'media'], category: 'Media' },
+  record: { data: ['0011100', '0111110', '1111111', '1111111', '1111111', '0111110', '0011100'], tags: ['record', 'media', 'circle', 'rec'], category: 'Media' },
+  'skip-forward': { data: ['0100010', '0111000', '0111100', '0111000', '0111100', '0111000', '0100010'], tags: ['skip', 'forward', 'next', 'media'], category: 'Media' },
+  'skip-back': { data: ['0100010', '0001110', '0011110', '0001110', '0011110', '0001110', '0100010'], tags: ['skip', 'back', 'previous', 'media'], category: 'Media' },
+  'fast-forward': { data: ['0100100', '0111000', '0111100', '0111000', '0111100', '0111000', '0100100'], tags: ['fast', 'forward', 'media'], category: 'Media' },
+  rewind: { data: ['0010010', '0001110', '0011110', '0001110', '0011110', '0001110', '0010010'], tags: ['rewind', 'back', 'media'], category: 'Media' },
+  volume: { data: ['0010000', '0111000', '1111100', '1111100', '1111100', '0111000', '0010000'], tags: ['volume', 'speaker', 'media', 'sound'], category: 'Media' },
+  mute: { data: ['0010000', '0111010', '1111100', '1111100', '1111100', '0111010', '0010000'], tags: ['mute', 'volume', 'media', 'sound', 'off'], category: 'Media' },
+  
+  // Arrows
+  'arrow-r': { data: ['0001000', '0000100', '0000010', '1111111', '0000010', '0000100', '0001000'], tags: ['arrow', 'right', 'forward', 'next', 'east'], category: 'Arrows' },
+  'arrow-l': { data: ['0001000', '0010000', '0100000', '1111111', '0100000', '0010000', '0001000'], tags: ['arrow', 'left', 'back', 'previous', 'west'], category: 'Arrows' },
+  'arrow-u': { data: ['0001000', '0011100', '0101010', '1001001', '0001000', '0001000', '0001000'], tags: ['arrow', 'up', 'north'], category: 'Arrows' },
+  'arrow-d': { data: ['0001000', '0001000', '0001000', '1001001', '0101010', '0011100', '0001000'], tags: ['arrow', 'down', 'south', 'download'], category: 'Arrows' },
+  'chevron-r': { data: ['0001000', '0001100', '0001110', '0001110', '0001100', '0001000', '0000000'], tags: ['chevron', 'right', 'arrow'], category: 'Arrows' },
+  'chevron-l': { data: ['0001000', '0011000', '0111000', '0111000', '0011000', '0001000', '0000000'], tags: ['chevron', 'left', 'arrow'], category: 'Arrows' },
+  'chevron-u': { data: ['0001000', '0011100', '0111110', '0000000', '0000000', '0000000', '0000000'], tags: ['chevron', 'up', 'arrow'], category: 'Arrows' },
+  'chevron-d': { data: ['0000000', '0000000', '0000000', '0111110', '0011100', '0001000', '0000000'], tags: ['chevron', 'down', 'arrow'], category: 'Arrows' },
+  
+  // UI Icons
+  'heart-icon': { data: ['0100010', '1110111', '1111111', '1111111', '0111110', '0011100', '0001000'], tags: ['heart', 'love', 'like', 'favorite', 'fav'], category: 'UI Icons' },
+  star: { data: ['0001000', '0001000', '1111111', '0111110', '0010100', '0101010', '1000001'], tags: ['star', 'favorite', 'rating', 'fav'], category: 'UI Icons' },
+  check: { data: ['0000000', '0000010', '0000100', '0001000', '1010000', '0100000', '0000000'], tags: ['check', 'checkmark', 'tick', 'done', 'complete', 'yes', 'correct', 'approve'], category: 'UI Icons' },
+  plus: { data: ['0001000', '0001000', '0001000', '1111111', '0001000', '0001000', '0001000'], tags: ['plus', 'add', 'new', 'create', 'positive'], category: 'UI Icons' },
+  minus: { data: ['0000000', '0000000', '0000000', '1111111', '0000000', '0000000', '0000000'], tags: ['minus', 'remove', 'subtract', 'negative'], category: 'UI Icons' },
+  close: { data: ['1000001', '0100010', '0010100', '0001000', '0010100', '0100010', '1000001'], tags: ['close', 'x', 'cancel', 'delete', 'remove', 'cross', 'multiply'], category: 'UI Icons' },
+  lightning: { data: ['0001100', '0011000', '0110000', '1111100', '0001100', '0011000', '0100000'], tags: ['lightning', 'bolt', 'flash', 'power', 'energy', 'electric', 'thunder', 'zap'], category: 'UI Icons' },
+  lock: { data: ['0011100', '0100010', '0100010', '1111111', '1101011', '1101011', '1111111'], tags: ['lock', 'secure', 'locked', 'security', 'password', 'private'], category: 'UI Icons' },
+  unlock: { data: ['0011100', '0100010', '0000010', '1111111', '1101011', '1101011', '1111111'], tags: ['unlock', 'unlocked', 'open'], category: 'UI Icons' },
+  home: { data: ['0001000', '0011100', '0111110', '1111111', '0110110', '0110110', '0111110'], tags: ['home', 'house', 'building', 'main'], category: 'UI Icons' },
+  search: { data: ['0111000', '1000100', '1000100', '1000100', '0111000', '0001100', '0000010'], tags: ['search', 'magnify', 'find', 'zoom', 'lookup', 'lens'], category: 'UI Icons' },
+  gear: { data: ['0101010', '0111110', '1110111', '0100010', '1110111', '0111110', '0101010'], tags: ['gear', 'settings', 'config', 'preferences', 'cog', 'options'], category: 'UI Icons' },
+  wifi: { data: ['0111110', '1000001', '0011100', '0100010', '0001000', '0000000', '0001000'], tags: ['wifi', 'wireless', 'signal', 'network', 'internet', 'connection'], category: 'UI Icons' },
+  download: { data: ['0001000', '0001000', '0001000', '0101010', '0010100', '0001000', '1111111'], tags: ['download', 'save', 'export'], category: 'UI Icons' },
+  upload: { data: ['0001000', '0010100', '0101010', '0001000', '0001000', '0001000', '1111111'], tags: ['upload', 'import', 'share'], category: 'UI Icons' },
+  eye: { data: ['0000000', '0011100', '0100010', '1001001', '0100010', '0011100', '0000000'], tags: ['eye', 'view', 'visible', 'show', 'watch', 'see', 'preview'], category: 'UI Icons' },
+  'eye-off': { data: ['0000000', '0011100', '0110010', '1001001', '0100010', '0011100', '0000000'], tags: ['eye', 'off', 'hidden', 'hide'], category: 'UI Icons' },
+  mail: { data: ['0000000', '1111111', '1100011', '1010101', '1001001', '1000001', '1111111'], tags: ['mail', 'email', 'envelope', 'message', 'inbox', 'letter'], category: 'UI Icons' },
+  bell: { data: ['0001000', '0011100', '0011100', '0100010', '0100010', '1111111', '0001000'], tags: ['bell', 'notification', 'alert', 'alarm', 'ring'], category: 'UI Icons' },
+  shield: { data: ['1111111', '1000001', '1000001', '1000001', '0100010', '0010100', '0001000'], tags: ['shield', 'security', 'protect', 'safe', 'guard', 'defense'], category: 'UI Icons' },
+  flag: { data: ['1100000', '1111100', '1111100', '1111100', '1100000', '1000000', '1000000'], tags: ['flag', 'report', 'bookmark', 'mark'], category: 'UI Icons' },
+  cursor: { data: ['1000000', '1100000', '1010000', '1001000', '1111100', '0001100', '0000100'], tags: ['cursor', 'pointer', 'mouse', 'click', 'select'], category: 'UI Icons' },
+  menu: { data: ['0000000', '1111111', '0000000', '1111111', '0000000', '1111111', '0000000'], tags: ['menu', 'hamburger', 'bars', 'navigation', 'nav', 'list'], category: 'UI Icons' },
+  refresh: { data: ['0011110', '0100001', '0100000', '0000000', '0000010', '1000010', '0111100'], tags: ['refresh', 'reload', 'sync', 'rotate', 'update'], category: 'UI Icons' },
+  power: { data: ['0001000', '0001000', '0100010', '1000001', '1000001', '0100010', '0011100'], tags: ['power', 'on', 'off', 'shutdown', 'switch', 'toggle'], category: 'UI Icons' },
+  link: { data: ['0011100', '0100010', '0100000', '0011100', '0000010', '0100010', '0011100'], tags: ['link', 'chain', 'url', 'connect', 'href', 'anchor'], category: 'UI Icons' },
+  key: { data: ['0011000', '0100100', '0011000', '0001000', '0001100', '0001000', '0001100'], tags: ['key', 'password', 'access', 'auth', 'token'], category: 'UI Icons' },
+  pin: { data: ['0011100', '0100010', '0100010', '0100010', '0011100', '0001000', '0001000'], tags: ['pin', 'location', 'map', 'place', 'marker', 'gps'], category: 'UI Icons' },
+  user: { data: ['0011100', '0100010', '0100010', '0011100', '0000000', '0111110', '1000001'], tags: ['user', 'person', 'profile', 'account', 'avatar', 'people'], category: 'UI Icons' },
+  users: { data: ['0011000', '0100100', '0100100', '0011000', '1111111', '1000001', '1111111'], tags: ['users', 'people', 'team', 'group'], category: 'UI Icons' },
+  folder: { data: ['1110000', '1001111', '1000001', '1000001', '1000001', '1000001', '1111111'], tags: ['folder', 'directory', 'files', 'dir'], category: 'UI Icons' },
+  file: { data: ['1111100', '1000110', '1000011', '1000001', '1000001', '1000001', '1111111'], tags: ['file', 'document', 'page', 'doc', 'paper'], category: 'UI Icons' },
+  trash: { data: ['0111110', '1111111', '0100010', '0101010', '0101010', '0100010', '0111110'], tags: ['trash', 'delete', 'bin', 'garbage', 'remove', 'waste'], category: 'UI Icons' },
+  code: { data: ['0010010', '0100100', '1001000', '0100100', '0010010', '0000000', '0000000'], tags: ['code', 'brackets', 'dev', 'programming', 'terminal', 'script'], category: 'UI Icons' },
+  music: { data: ['0000110', '0000101', '0000100', '0000100', '0110100', '1001100', '0110000'], tags: ['music', 'note', 'audio', 'sound', 'song'], category: 'UI Icons' },
+  camera: { data: ['0100100', '1111111', '1000001', '1011101', '1010101', '1011101', '1111111'], tags: ['camera', 'photo', 'picture', 'image', 'snapshot'], category: 'UI Icons' },
+  bookmark: { data: ['1111111', '1000001', '1000001', '1000001', '1010101', '1101011', '1000001'], tags: ['bookmark', 'save', 'tag', 'label'], category: 'UI Icons' },
+  phone: { data: ['0111110', '0100010', '0100010', '0100010', '0100010', '0111110', '0111110'], tags: ['phone', 'mobile', 'call', 'device', 'smartphone'], category: 'UI Icons' },
+  database: { data: ['0111110', '1111111', '0111110', '0100010', '0111110', '1111111', '0111110'], tags: ['database', 'db', 'storage', 'data', 'server', 'cylinder'], category: 'UI Icons' },
+  clock: { data: ['0111110', '1100011', '1100110', '1101010', '1101001', '1100011', '0111110'], tags: ['clock', 'time', 'watch', 'timer'], category: 'UI Icons' },
+  calendar: { data: ['1111111', '1000001', '1011101', '1010101', '1010101', '1011101', '1111111'], tags: ['calendar', 'date', 'schedule', 'event'], category: 'UI Icons' },
+  filter: { data: ['1111111', '1000001', '0100010', '0010100', '0001000', '0001000', '0001000'], tags: ['filter', 'funnel', 'sort'], category: 'UI Icons' },
+  sort: { data: ['0001000', '0011100', '0111110', '0000000', '0111110', '0011100', '0001000'], tags: ['sort', 'order', 'arrange'], category: 'UI Icons' },
+  
+  // Weather
+  sun: { data: ['0100010', '0011100', '1111111', '0111110', '1111111', '0011100', '0100010'], tags: ['sun', 'light', 'bright', 'day', 'weather'], category: 'Weather' },
+  moon: { data: ['0011100', '0100000', '1000000', '1000000', '1000000', '0100000', '0011100'], tags: ['moon', 'dark', 'night', 'sleep', 'crescent', 'weather'], category: 'Weather' },
+  cloud: { data: ['0000000', '0011100', '0100010', '1100011', '1111111', '1111111', '0000000'], tags: ['cloud', 'weather', 'storage', 'sky', 'upload'], category: 'Weather' },
+  rain: { data: ['0000000', '0011100', '0100010', '1100011', '1111111', '0100010', '0010100'], tags: ['rain', 'weather', 'water', 'storm'], category: 'Weather' },
+  snow: { data: ['0000000', '0011100', '0100010', '1100011', '1111111', '0010100', '0100010'], tags: ['snow', 'weather', 'cold', 'winter'], category: 'Weather' },
+  
+  // Animals
+  cat: { data: ['1001001', '1001001', '1111111', '1000001', '1010101', '1000001', '0111110'], tags: ['cat', 'animal', 'pet', 'kitty'], category: 'Animals' },
+  dog: { data: ['1001001', '1001001', '0111110', '1000001', '1010101', '1000001', '0111110'], tags: ['dog', 'animal', 'pet', 'puppy'], category: 'Animals' },
+  bird: { data: ['0011000', '0100100', '0111110', '1100011', '1000001', '0100010', '0010100'], tags: ['bird', 'animal', 'fly', 'twitter'], category: 'Animals' },
+  fish: { data: ['0000000', '0011110', '0111111', '1100011', '0111111', '0011110', '0001000'], tags: ['fish', 'animal', 'sea', 'ocean', 'swim'], category: 'Animals' },
+  rabbit: { data: ['0011000', '0011000', '0111110', '1000001', '1010101', '1000001', '0111110'], tags: ['rabbit', 'animal', 'bunny', 'pet'], category: 'Animals' },
+  
+  // Transport
+  rocket: { data: ['0001000', '0011100', '0111110', '1111111', '0111110', '0010100', '0101010'], tags: ['rocket', 'space', 'launch', 'transport', 'ship'], category: 'Transport' },
+  car: { data: ['0000000', '0111110', '1111111', '1000001', '1111111', '0101010', '0101010'], tags: ['car', 'vehicle', 'transport', 'auto', 'drive'], category: 'Transport' },
+  plane: { data: ['0001000', '0011100', '1111111', '0011100', '0010100', '0001000', '0001000'], tags: ['plane', 'airplane', 'flight', 'transport', 'fly'], category: 'Transport' },
+  bike: { data: ['0100010', '1010101', '0101010', '0010100', '0101010', '1010101', '0100010'], tags: ['bike', 'bicycle', 'cycle', 'transport'], category: 'Transport' },
+  
+  // Shapes
+  circle: { data: ['0011100', '0100010', '1000001', '1000001', '1000001', '0100010', '0011100'], tags: ['circle', 'shape', 'round'], category: 'Shapes' },
+  square: { data: ['0111110', '0100010', '0100010', '0100010', '0100010', '0100010', '0111110'], tags: ['square', 'shape', 'box'], category: 'Shapes' },
+  triangle: { data: ['0001000', '0001000', '0010100', '0010100', '0100010', '0100010', '1111111'], tags: ['triangle', 'shape'], category: 'Shapes' },
+  'diamond-shape': { data: ['0001000', '0010100', '0100010', '1000001', '0100010', '0010100', '0001000'], tags: ['diamond', 'shape', 'rhombus'], category: 'Shapes' },
+  
+  // Currency
+  dollar: { data: ['0010100', '0100010', '1111100', '0100010', '0011110', '0100010', '0010100'], tags: ['dollar', 'currency', 'money', 'usd', 'price'], category: 'Currency' },
+  euro: { data: ['0011100', '0100000', '1111000', '0100000', '0111100', '0100000', '0011100'], tags: ['euro', 'currency', 'money', 'eur'], category: 'Currency' },
+  pound: { data: ['0011100', '0100010', '1110000', '0100000', '0100000', '0100110', '0011000'], tags: ['pound', 'currency', 'money', 'gbp'], category: 'Currency' },
+  yen: { data: ['1000001', '1100011', '0111110', '0010100', '0111110', '0010100', '0010100'], tags: ['yen', 'currency', 'money', 'jpy'], category: 'Currency' },
+  bitcoin: { data: ['0011100', '0100010', '1101100', '0101000', '1101100', '0100010', '0011100'], tags: ['bitcoin', 'crypto', 'currency', 'btc'], category: 'Currency' },
+  
+  // Math
+  infinity: { data: ['0000000', '0000000', '0110110', '1001001', '0110110', '0000000', '0000000'], tags: ['infinity', 'math', 'forever', 'infinite'], category: 'Math' },
+  percent: { data: ['0100000', '1010000', '0100100', '0001010', '0000101', '0000010', '0000000'], tags: ['percent', 'math', 'percentage'], category: 'Math' },
+  divide: { data: ['0001000', '0000000', '1111111', '0000000', '0001000', '0000000', '0000000'], tags: ['divide', 'math', 'division'], category: 'Math' },
+  equals: { data: ['0000000', '1111111', '0000000', '1111111', '0000000', '0000000', '0000000'], tags: ['equals', 'math', 'equal'], category: 'Math' },
+  
+  // Emoticons
+  smile: { data: ['0000000', '0110110', '0110110', '0000000', '1000001', '0100010', '0011100'], tags: ['smile', 'happy', 'emoticon', 'face'], category: 'Emoticons' },
+  sad: { data: ['0000000', '0110110', '0110110', '0000000', '0011100', '0100010', '1000001'], tags: ['sad', 'unhappy', 'emoticon', 'face'], category: 'Emoticons' },
+  wink: { data: ['0000000', '0111110', '0110110', '0000000', '1000001', '0100010', '0011100'], tags: ['wink', 'emoticon', 'face'], category: 'Emoticons' },
+  cool: { data: ['0000000', '0111110', '0000000', '1000001', '0100010', '0011100', '0000000'], tags: ['cool', 'sunglasses', 'emoticon', 'face'], category: 'Emoticons' },
+  
+  // Food
+  coffee: { data: ['0100010', '0011100', '1111111', '1000001', '1000001', '1000001', '1111111'], tags: ['coffee', 'drink', 'cafe', 'cup', 'beverage'], category: 'Food' },
+  pizza: { data: ['0111110', '1100011', '1010101', '1101011', '1010101', '1100011', '0111110'], tags: ['pizza', 'food', 'slice'], category: 'Food' },
+  burger: { data: ['0111110', '1000001', '1111111', '1000001', '1111111', '1000001', '0111110'], tags: ['burger', 'food', 'hamburger'], category: 'Food' },
+  apple: { data: ['0001000', '0011100', '0111110', '1111111', '1111111', '0111110', '0000000'], tags: ['apple', 'fruit', 'food'], category: 'Food' },
+  
+  // Sports
+  ball: { data: ['0000000', '0011100', '0111110', '1111111', '0111110', '0011100', '0000000'], tags: ['ball', 'sport', 'circle'], category: 'Sports' },
+  trophy: { data: ['0011100', '0111110', '0111110', '0011100', '0001000', '0011100', '0011100'], tags: ['trophy', 'award', 'winner', 'sport'], category: 'Sports' },
+  medal: { data: ['0001000', '0011100', '0111110', '0111110', '0011100', '0001000', '0001000'], tags: ['medal', 'award', 'prize', 'sport'], category: 'Sports' },
+  
+  // Chess
+  'chess-king': { data: ['0001000', '0011100', '0001000', '0111110', '1111111', '0111110', '0010100'], tags: ['chess', 'king', 'game', 'piece'], category: 'Chess' },
+  'chess-queen': { data: ['0101010', '0010100', '0111110', '1111111', '0111110', '0010100', '0010100'], tags: ['chess', 'queen', 'game', 'piece'], category: 'Chess' },
+  'chess-rook': { data: ['0111110', '0100010', '0100010', '0100010', '1111111', '0111110', '0010100'], tags: ['chess', 'rook', 'castle', 'game', 'piece'], category: 'Chess' },
+  'chess-knight': { data: ['0011000', '0100100', '0111100', '0100010', '1111111', '0111110', '0010100'], tags: ['chess', 'knight', 'horse', 'game', 'piece'], category: 'Chess' },
+  'chess-bishop': { data: ['0001000', '0010100', '0100010', '1111111', '0111110', '0010100', '0010100'], tags: ['chess', 'bishop', 'game', 'piece'], category: 'Chess' },
+  'chess-pawn': { data: ['0000000', '0001000', '0011100', '1111111', '0111110', '0010100', '0010100'], tags: ['chess', 'pawn', 'game', 'piece'], category: 'Chess' },
+  
+  // Card Suits
+  spade: { data: ['0001000', '0011100', '0111110', '1111111', '0111110', '0010100', '0001000'], tags: ['spade', 'card', 'suit', 'poker'], category: 'Card Suits' },
+  heart: { data: ['0100010', '1110111', '1111111', '1111111', '0111110', '0011100', '0001000'], tags: ['heart', 'card', 'suit', 'poker'], category: 'Card Suits' },
+  diamond: { data: ['0001000', '0010100', '0100010', '1000001', '0100010', '0010100', '0001000'], tags: ['diamond', 'card', 'suit', 'poker'], category: 'Card Suits' },
+  club: { data: ['0010100', '0111110', '1111111', '0111110', '0010100', '0001000', '0001000'], tags: ['club', 'card', 'suit', 'poker'], category: 'Card Suits' },
 };
 
 // ═══════════════════════════════════════════
@@ -114,47 +321,84 @@ function matchIcon(query: string): MatchResult | null {
   const q = query.trim();
   if (!q) return null;
 
-  // Single character → letter or number
-  const upper = q.toUpperCase();
-  if (q.length === 1 && LETTERS[upper]) return { name: upper, data: LETTERS[upper] };
-  if (q.length === 1 && NUMBERS[q]) return { name: q, data: NUMBERS[q] };
+  // Single character match
+  if (q.length === 1) {
+    // Uppercase letter
+    if (/[A-Z]/.test(q) && LETTERS[q]) return { name: q, data: LETTERS[q] };
+    // Lowercase letter
+    if (/[a-z]/.test(q) && LOWERCASE[q]) return { name: q, data: LOWERCASE[q] };
+    // Number
+    if (/[0-9]/.test(q) && NUMBERS[q]) return { name: q, data: NUMBERS[q] };
+    // Try direct key match for punctuation etc
+    for (const [key, icon] of Object.entries(SYMBOLS)) {
+      if (icon.tags.includes(q)) return { name: key, data: icon.data };
+    }
+  }
 
-  // "letter X" or "number X" patterns
+  // Pattern: "bold X"
+  const boldMatch = q.match(/^bold\s+([A-Z0-9])$/i);
+  if (boldMatch) {
+    const ch = boldMatch[1].toUpperCase();
+    if (BOLD_LETTERS[ch]) return { name: `bold ${ch}`, data: BOLD_LETTERS[ch] };
+    if (BOLD_NUMBERS[ch]) return { name: `bold ${ch}`, data: BOLD_NUMBERS[ch] };
+  }
+
+  // Pattern: "outline X"
+  const outlineMatch = q.match(/^outline\s+([A-Z])$/i);
+  if (outlineMatch) {
+    const ch = outlineMatch[1].toUpperCase();
+    if (OUTLINE_LETTERS[ch]) return { name: `outline ${ch}`, data: OUTLINE_LETTERS[ch] };
+  }
+
+  // Pattern: "lowercase X" or "lower X"
+  const lowerMatch = q.match(/^(?:lower|lowercase)\s+([a-zA-Z])$/i);
+  if (lowerMatch) {
+    const ch = lowerMatch[1].toLowerCase();
+    if (LOWERCASE[ch]) return { name: ch, data: LOWERCASE[ch] };
+  }
+
+  // Pattern: "letter X" or "char X"
   const letterMatch = q.match(/^(?:letter|char|character)\s+([a-zA-Z])$/i);
   if (letterMatch) {
     const ch = letterMatch[1].toUpperCase();
     if (LETTERS[ch]) return { name: ch, data: LETTERS[ch] };
   }
-  const numMatch = q.match(/^(?:number|digit|num)\s+(\d)$/i);
+
+  // Pattern: "number X" or "digit X"
+  const numMatch = q.match(/^(?:number|digit|num)\s+([0-9])$/i);
   if (numMatch) {
     const d = numMatch[1];
     if (NUMBERS[d]) return { name: d, data: NUMBERS[d] };
   }
 
-  // Keyword search against symbols
+  // Pattern: "dice X"
+  const diceMatch = q.match(/^dice\s+([1-6])$/i);
+  if (diceMatch) {
+    const d = diceMatch[1];
+    if (DICE[d]) return { name: `dice ${d}`, data: DICE[d] };
+  }
+
+  // Exact key match
+  const directKey = q.toLowerCase().replace(/\s+/g, '-');
+  if (SYMBOLS[directKey]) return { name: directKey, data: SYMBOLS[directKey].data };
+
+  // Keyword search across all icons
   const words = q.toLowerCase().split(/[\s,\/\-_]+/).filter(Boolean);
   let bestKey: string | null = null;
   let bestScore = 0;
 
-  for (const [key, sym] of Object.entries(SYMBOLS)) {
+  for (const [key, icon] of Object.entries(SYMBOLS)) {
     let score = 0;
-    // Exact key match
-    if (key === q.toLowerCase().replace(/\s+/g, '-')) score += 10;
-
+    if (key === directKey) score += 10;
     for (const word of words) {
-      // Exact tag match
-      if (sym.tags.includes(word)) score += 3;
-      // Tag contains word
-      else if (sym.tags.some((t) => t.includes(word))) score += 2;
-      // Word contains tag
-      else if (sym.tags.some((t) => word.includes(t))) score += 1;
+      if (icon.tags.includes(word)) score += 3;
+      else if (icon.tags.some((t) => t.includes(word))) score += 2;
+      else if (icon.tags.some((t) => word.includes(t))) score += 1;
     }
-    // Multi-word tag match (e.g. "arrow right")
     const fullQ = q.toLowerCase();
-    for (const tag of sym.tags) {
+    for (const tag of icon.tags) {
       if (tag.includes(' ') && fullQ.includes(tag)) score += 5;
     }
-
     if (score > bestScore) {
       bestScore = score;
       bestKey = key;
@@ -185,6 +429,72 @@ function placeIconInGrid(iconData: string[], targetCols: number, targetRows: num
   }
   return result;
 }
+
+// ═══════════════════════════════════════════
+// ICON LIBRARY FOR BROWSE MODAL
+// ═══════════════════════════════════════════
+interface IconLibraryItem {
+  name: string;
+  data: string[];
+  category: string;
+}
+
+function buildIconLibrary(): IconLibraryItem[] {
+  const items: IconLibraryItem[] = [];
+
+  // Add symbols with categories
+  for (const [key, icon] of Object.entries(SYMBOLS)) {
+    items.push({
+      name: key,
+      data: icon.data,
+      category: icon.category || 'UI Icons',
+    });
+  }
+
+  // Add uppercase letters
+  for (const [key, data] of Object.entries(LETTERS)) {
+    items.push({ name: key, data, category: 'Uppercase Letters' });
+  }
+
+  // Add lowercase letters
+  for (const [key, data] of Object.entries(LOWERCASE)) {
+    items.push({ name: key, data, category: 'Lowercase Letters' });
+  }
+
+  // Add numbers
+  for (const [key, data] of Object.entries(NUMBERS)) {
+    items.push({ name: key, data, category: 'Numbers' });
+  }
+
+  // Add bold letters
+  for (const [key, data] of Object.entries(BOLD_LETTERS)) {
+    items.push({ name: `bold ${key}`, data, category: 'Bold Letters' });
+  }
+
+  // Add bold numbers
+  for (const [key, data] of Object.entries(BOLD_NUMBERS)) {
+    items.push({ name: `bold ${key}`, data, category: 'Bold Numbers' });
+  }
+
+  // Add outline letters
+  for (const [key, data] of Object.entries(OUTLINE_LETTERS)) {
+    items.push({ name: `outline ${key}`, data, category: 'Outline Letters' });
+  }
+
+  // Add dice
+  for (const [key, data] of Object.entries(DICE)) {
+    items.push({ name: `dice ${key}`, data, category: 'Dice' });
+  }
+
+  return items;
+}
+
+// Category order for display
+const CATEGORY_ORDER = [
+  'UI Icons', 'Media', 'Arrows', 'Emoticons', 'Shapes', 'Weather', 'Animals',
+  'Food', 'Transport', 'Sports', 'Currency', 'Math', 'Chess', 'Card Suits',
+  'Uppercase Letters', 'Lowercase Letters', 'Numbers', 'Bold Letters', 'Bold Numbers', 'Outline Letters', 'Dice'
+];
 
 // ═══════════════════════════════════════════
 // MAIN COMPONENT
@@ -226,9 +536,41 @@ export default function PixelGeneratorPage() {
 
   // Browse modal state
   const [showBrowseModal, setShowBrowseModal] = useState(false);
+  const [browseSearch, setBrowseSearch] = useState('');
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Build icon library once
+  const iconLibrary = useMemo(() => buildIconLibrary(), []);
+
+  // Filter and group icons by category
+  const filteredIcons = useMemo(() => {
+    const search = browseSearch.toLowerCase().trim();
+    const filtered = search
+      ? iconLibrary.filter(
+          (icon) =>
+            icon.name.toLowerCase().includes(search) ||
+            (SYMBOLS[icon.name]?.tags.some((t) => t.includes(search)))
+        )
+      : iconLibrary;
+
+    // Group by category
+    const grouped: Record<string, IconLibraryItem[]> = {};
+    for (const icon of filtered) {
+      if (!grouped[icon.category]) grouped[icon.category] = [];
+      grouped[icon.category].push(icon);
+    }
+
+    // Sort by category order
+    const sortedCategories = CATEGORY_ORDER.filter((c) => grouped[c]);
+    // Add any categories not in the order list
+    for (const c of Object.keys(grouped)) {
+      if (!sortedCategories.includes(c)) sortedCategories.push(c);
+    }
+
+    return { categories: sortedCategories, icons: grouped, total: filtered.length };
+  }, [iconLibrary, browseSearch]);
 
   // Get shadow map
   const getShadowMap = useCallback((): boolean[][] => {
@@ -364,89 +706,92 @@ export default function PixelGeneratorPage() {
   };
 
   // Convert image to grid
-  const convertImageToGrid = useCallback((
-    img: HTMLImageElement,
-    targetCols: number,
-    targetRows: number,
-    thresh: number,
-    mode: 'alpha' | 'luminance' | 'dark',
-    invert: boolean
-  ) => {
-    const canvas = document.createElement('canvas');
-    const sW = targetCols * 8;
-    const sH = targetRows * 8;
-    canvas.width = sW;
-    canvas.height = sH;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
+  const convertImageToGrid = useCallback(
+    (
+      img: HTMLImageElement,
+      targetCols: number,
+      targetRows: number,
+      thresh: number,
+      mode: 'alpha' | 'luminance' | 'dark',
+      invert: boolean
+    ) => {
+      const canvas = document.createElement('canvas');
+      const sW = targetCols * 8;
+      const sH = targetRows * 8;
+      canvas.width = sW;
+      canvas.height = sH;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
 
-    if (mode === 'alpha') {
-      ctx.clearRect(0, 0, sW, sH);
-    } else {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, sW, sH);
-    }
-
-    const iA = img.width / img.height;
-    const cA = sW / sH;
-    let dW: number, dH: number, dX: number, dY: number;
-    if (iA > cA) {
-      dW = sW;
-      dH = sW / iA;
-      dX = 0;
-      dY = (sH - dH) / 2;
-    } else {
-      dH = sH;
-      dW = sH * iA;
-      dX = (sW - dW) / 2;
-      dY = 0;
-    }
-
-    ctx.drawImage(img, dX, dY, dW, dH);
-    const imgData = ctx.getImageData(0, 0, sW, sH);
-    const newGrid: boolean[][] = [];
-    const cellW = sW / targetCols;
-    const cellH = sH / targetRows;
-
-    for (let r = 0; r < targetRows; r++) {
-      const row: boolean[] = [];
-      for (let c = 0; c < targetCols; c++) {
-        const sx = Math.floor(c * cellW);
-        const sy = Math.floor(r * cellH);
-        const ex = Math.floor((c + 1) * cellW);
-        const ey = Math.floor((r + 1) * cellH);
-        let sum = 0;
-        let cnt = 0;
-
-        for (let y = sy; y < ey; y++) {
-          for (let x = sx; x < ex; x++) {
-            const i = (y * sW + x) * 4;
-            const R = imgData.data[i];
-            const G = imgData.data[i + 1];
-            const B = imgData.data[i + 2];
-            const A = imgData.data[i + 3];
-
-            if (mode === 'alpha') {
-              sum += A / 255;
-            } else {
-              const l = (R * 0.299 + G * 0.587 + B * 0.114) / 255;
-              sum += mode === 'luminance' ? 1 - l : l < 0.5 ? 1 : 0;
-            }
-            cnt++;
-          }
-        }
-
-        let active = (sum / cnt) * 100 >= thresh;
-        if (invert) active = !active;
-        row.push(active);
+      if (mode === 'alpha') {
+        ctx.clearRect(0, 0, sW, sH);
+      } else {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, sW, sH);
       }
-      newGrid.push(row);
-    }
 
-    setCols(targetCols);
-    setRows(targetRows);
-    setGrid(newGrid);
-  }, []);
+      const iA = img.width / img.height;
+      const cA = sW / sH;
+      let dW: number, dH: number, dX: number, dY: number;
+      if (iA > cA) {
+        dW = sW;
+        dH = sW / iA;
+        dX = 0;
+        dY = (sH - dH) / 2;
+      } else {
+        dH = sH;
+        dW = sH * iA;
+        dX = (sW - dW) / 2;
+        dY = 0;
+      }
+
+      ctx.drawImage(img, dX, dY, dW, dH);
+      const imgData = ctx.getImageData(0, 0, sW, sH);
+      const newGrid: boolean[][] = [];
+      const cellW = sW / targetCols;
+      const cellH = sH / targetRows;
+
+      for (let r = 0; r < targetRows; r++) {
+        const row: boolean[] = [];
+        for (let c = 0; c < targetCols; c++) {
+          const sx = Math.floor(c * cellW);
+          const sy = Math.floor(r * cellH);
+          const ex = Math.floor((c + 1) * cellW);
+          const ey = Math.floor((r + 1) * cellH);
+          let sum = 0;
+          let cnt = 0;
+
+          for (let y = sy; y < ey; y++) {
+            for (let x = sx; x < ex; x++) {
+              const i = (y * sW + x) * 4;
+              const R = imgData.data[i];
+              const G = imgData.data[i + 1];
+              const B = imgData.data[i + 2];
+              const A = imgData.data[i + 3];
+
+              if (mode === 'alpha') {
+                sum += A / 255;
+              } else {
+                const l = (R * 0.299 + G * 0.587 + B * 0.114) / 255;
+                sum += mode === 'luminance' ? 1 - l : l < 0.5 ? 1 : 0;
+              }
+              cnt++;
+            }
+          }
+
+          let active = (sum / cnt) * 100 >= thresh;
+          if (invert) active = !active;
+          row.push(active);
+        }
+        newGrid.push(row);
+      }
+
+      setCols(targetCols);
+      setRows(targetRows);
+      setGrid(newGrid);
+    },
+    []
+  );
 
   // Generate from prompt
   const handleGenerateFromPrompt = async () => {
@@ -492,7 +837,7 @@ export default function PixelGeneratorPage() {
       img.onload = () => {
         setLoadedImage(img);
         setSourcePreview(imageUrl);
-        
+
         // Auto-detect mode
         const canvas = document.createElement('canvas');
         const sz = 64;
@@ -525,16 +870,16 @@ export default function PixelGeneratorPage() {
           setDetectMode(mode);
           convertImageToGrid(img, cols, rows, threshold, mode, invertGrid);
         }
-        
+
         setInfoMessage('Generated with AI');
         setIsGenerating(false);
       };
-      
+
       img.onerror = () => {
         setErrorMessage('Failed to load generated image');
         setIsGenerating(false);
       };
-      
+
       img.src = imageUrl;
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : 'An error occurred');
@@ -552,7 +897,7 @@ export default function PixelGeneratorPage() {
       img.onload = () => {
         setLoadedImage(img);
         setSourcePreview(e.target?.result as string);
-        
+
         // Auto-detect mode
         const canvas = document.createElement('canvas');
         const sz = 64;
@@ -729,6 +1074,12 @@ export default function PixelGeneratorPage() {
   // Shadow map for rendering
   const shadowMap = showShadow ? getShadowMap() : null;
 
+  // Example chips
+  const examples = [
+    'play', 'heart', 'star', 'lightning', 'check', 'lock', 'arrow right',
+    'B', '7', 'home', 'gear', 'wifi', 'rocket', 'dice 3', 'bold A', 'cat'
+  ];
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
@@ -801,7 +1152,7 @@ export default function PixelGeneratorPage() {
                 value={promptInput}
                 onChange={(e) => setPromptInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleGenerateFromPrompt()}
-                placeholder='Type an icon name — e.g. "play", "heart", "A"'
+                placeholder='Type an icon name — e.g. "play", "heart", "bold A", "dice 3"'
                 className="flex-1 px-4 py-3 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
@@ -813,9 +1164,12 @@ export default function PixelGeneratorPage() {
               </button>
             </div>
 
-            <div className="flex items-center justify-center gap-4 flex-wrap">
+            <div className="flex items-center justify-center">
               <button
-                onClick={() => setShowBrowseModal(true)}
+                onClick={() => {
+                  setBrowseSearch('');
+                  setShowBrowseModal(true);
+                }}
                 className="text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
               >
                 Browse all icons
@@ -824,20 +1178,18 @@ export default function PixelGeneratorPage() {
 
             <div className="flex gap-2 flex-wrap justify-center">
               <span className="text-xs text-zinc-500">Try:</span>
-              {['play', 'heart', 'star', 'lightning', 'check', 'lock', 'arrow right', 'B', '7', 'home', 'gear', 'wifi'].map(
-                (example) => (
-                  <button
-                    key={example}
-                    onClick={() => {
-                      setPromptInput(example);
-                      setTimeout(() => handleGenerateFromPrompt(), 0);
-                    }}
-                    className="px-3 py-1 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-zinc-600 dark:text-zinc-400 hover:border-blue-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
-                  >
-                    {example}
-                  </button>
-                )
-              )}
+              {examples.map((example) => (
+                <button
+                  key={example}
+                  onClick={() => {
+                    setPromptInput(example);
+                    setTimeout(() => handleGenerateFromPrompt(), 0);
+                  }}
+                  className="px-3 py-1 text-xs bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-zinc-600 dark:text-zinc-400 hover:border-blue-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
+                >
+                  {example}
+                </button>
+              ))}
             </div>
 
             <div className="flex items-center justify-center gap-4">
@@ -1262,7 +1614,7 @@ export default function PixelGeneratorPage() {
           >
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-                Icon Library
+                Icon Library ({filteredIcons.total} icons)
               </h3>
               <button
                 onClick={() => setShowBrowseModal(false)}
@@ -1272,78 +1624,47 @@ export default function PixelGeneratorPage() {
               </button>
             </div>
 
-            <div className="space-y-6">
-              {/* Symbols */}
-              <div>
-                <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wide mb-3">
-                  Symbols
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(SYMBOLS).map(([key, sym]) => (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        const newGrid = placeIconInGrid(sym.data, cols, rows);
-                        setGrid(newGrid);
-                        setPromptInput(key);
-                        setShowBrowseModal(false);
-                        setInfoMessage(`Loaded: ${key}`);
-                      }}
-                      className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center hover:border-blue-500 border border-zinc-200 dark:border-zinc-700 transition-colors"
-                      title={key}
-                      dangerouslySetInnerHTML={{ __html: generateMiniSVG(sym.data, 40) }}
-                    />
-                  ))}
-                </div>
-              </div>
+            {/* Search */}
+            <div className="mb-6">
+              <input
+                type="text"
+                value={browseSearch}
+                onChange={(e) => setBrowseSearch(e.target.value)}
+                placeholder="Search icons..."
+                className="w-full px-4 py-3 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+            </div>
 
-              {/* Letters */}
-              <div>
-                <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wide mb-3">
-                  Letters
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(LETTERS).map(([key, data]) => (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        const newGrid = placeIconInGrid(data, cols, rows);
-                        setGrid(newGrid);
-                        setPromptInput(key);
-                        setShowBrowseModal(false);
-                        setInfoMessage(`Loaded: ${key}`);
-                      }}
-                      className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center hover:border-blue-500 border border-zinc-200 dark:border-zinc-700 transition-colors"
-                      title={key}
-                      dangerouslySetInnerHTML={{ __html: generateMiniSVG(data, 40) }}
-                    />
-                  ))}
+            {/* Categories */}
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto">
+              {filteredIcons.categories.map((category) => (
+                <div key={category}>
+                  <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wide mb-3">
+                    {category} ({filteredIcons.icons[category]?.length || 0})
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {filteredIcons.icons[category]?.map((icon) => (
+                      <button
+                        key={icon.name}
+                        onClick={() => {
+                          const newGrid = placeIconInGrid(icon.data, cols, rows);
+                          setGrid(newGrid);
+                          setPromptInput(icon.name);
+                          setShowBrowseModal(false);
+                          setInfoMessage(`Loaded: ${icon.name}`);
+                        }}
+                        className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center hover:border-blue-500 border border-zinc-200 dark:border-zinc-700 transition-colors relative group"
+                        title={icon.name}
+                        dangerouslySetInnerHTML={{ __html: generateMiniSVG(icon.data, 40) }}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-              {/* Numbers */}
-              <div>
-                <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wide mb-3">
-                  Numbers
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(NUMBERS).map(([key, data]) => (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        const newGrid = placeIconInGrid(data, cols, rows);
-                        setGrid(newGrid);
-                        setPromptInput(key);
-                        setShowBrowseModal(false);
-                        setInfoMessage(`Loaded: ${key}`);
-                      }}
-                      className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center hover:border-blue-500 border border-zinc-200 dark:border-zinc-700 transition-colors"
-                      title={key}
-                      dangerouslySetInnerHTML={{ __html: generateMiniSVG(data, 40) }}
-                    />
-                  ))}
-                </div>
-              </div>
+              ))}
+              {filteredIcons.total === 0 && (
+                <div className="text-center text-zinc-500 py-12">No icons match your search.</div>
+              )}
             </div>
           </div>
         </div>
