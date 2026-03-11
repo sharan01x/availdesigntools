@@ -10,6 +10,7 @@ interface Shot {
   description: string;
   visualPrompt: string;
   imageUrl?: string;
+  videoUrl?: string;
 }
 
 interface Storyboard {
@@ -121,6 +122,7 @@ export async function POST(request: NextRequest) {
         description: typeof shot.description === 'string' ? shot.description : '',
         visualPrompt: typeof shot.visualPrompt === 'string' ? shot.visualPrompt : '',
         imageUrl: typeof shot.imageUrl === 'string' ? shot.imageUrl : undefined,
+        videoUrl: typeof shot.videoUrl === 'string' ? shot.videoUrl : undefined,
       })),
       createdAt: now,
       updatedAt: now,
@@ -169,6 +171,7 @@ export async function PUT(request: NextRequest) {
             description: typeof shot.description === 'string' ? shot.description : '',
             visualPrompt: typeof shot.visualPrompt === 'string' ? shot.visualPrompt : '',
             imageUrl: typeof shot.imageUrl === 'string' ? shot.imageUrl : undefined,
+            videoUrl: typeof shot.videoUrl === 'string' ? shot.videoUrl : undefined,
           }))
         : existing.shots,
       updatedAt: new Date().toISOString(),

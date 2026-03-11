@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Replicate from 'replicate';
+import { downloadAndStoreMedia } from '@/lib/media-storage';
 
 export const runtime = 'nodejs';
 
@@ -122,7 +123,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, imageUrl });
+    const localUrl = await downloadAndStoreMedia(imageUrl, 'image');
+
+    return NextResponse.json({ success: true, imageUrl: localUrl });
   } catch (error) {
     console.error('Error generating image:', error);
     return NextResponse.json(

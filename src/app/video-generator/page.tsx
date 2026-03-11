@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import JSZip from 'jszip';
@@ -11,7 +11,9 @@ interface Shot {
   description: string;
   visualPrompt: string;
   imageUrl?: string;
+  videoUrl?: string;
   isGeneratingImage?: boolean;
+  isGeneratingVideo?: boolean;
 }
 
 interface StoryboardListItem {
@@ -51,10 +53,15 @@ function VideoGeneratorContent() {
   const [currentTitle, setCurrentTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'storyboard' | 'clips'>('storyboard');
 
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [savedStoryboards, setSavedStoryboards] = useState<StoryboardListItem[]>([]);
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+
+  const [playAllMode, setPlayAllMode] = useState(false);
+  const [currentPlayingIndex, setCurrentPlayingIndex] = useState(0);
+  const playAllVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (showLoadModal) {
@@ -162,6 +169,51 @@ function VideoGeneratorContent() {
     }
   };
 
+  const handleGenerateClip = async (shotId: number) => {
+    const shot = shots.find((s) => s.id === shotId);
+    if (!shot) return;
+
+    setShots(
+      shots.map((s) =>
+        s.id === shotId ? { ...s, isGeneratingVideo: true } : s
+      )
+    );
+
+    try {
+      const response = await fetch('/api/generate-clip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: shot.description,
+          imageUrl: shot.imageUrl,
+          draft: true,
+          duration: 5,
+        }),
+      });
+
+      const data = await parseApiResponse(response);
+
+      if (!response.ok || !data.success) {
+        throw new Error((data.error as string) || 'Failed to generate clip');
+      }
+
+      setShots(
+        shots.map((s) =>
+          s.id === shotId
+            ? { ...s, videoUrl: data.videoUrl as string, isGeneratingVideo: false }
+            : s
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate clip');
+      setShots(
+        shots.map((s) =>
+          s.id === shotId ? { ...s, isGeneratingVideo: false } : s
+        )
+      );
+    }
+  };
+
   const handleSave = async () => {
     if (shots.length === 0) return;
 
@@ -242,6 +294,7 @@ ${shots.map((shot, index) => `
 Description: ${shot.description}
 Visual Prompt: ${shot.visualPrompt}
 Image URL: ${shot.imageUrl || 'No image generated'}
+Video URL: ${shot.videoUrl || 'No video generated'}
 `).join('\n')}`;
 
       zip.file('storyboard.txt', storyboardText);
@@ -259,7 +312,19 @@ Image URL: ${shot.imageUrl || 'No image generated'}
         }
       });
 
-      await Promise.all(imagePromises);
+      const videoPromises = shots.map(async (shot, index) => {
+        if (shot.videoUrl) {
+          try {
+            const response = await fetch(shot.videoUrl);
+            const blob = await response.blob();
+            zip.file(`clip-${String(index + 1).padStart(2, '0')}-${shot.title.replace(/[^a-zA-Z0-9]/g, '-')}.mp4`, blob);
+          } catch {
+            console.error(`Failed to download video for shot ${index + 1}`);
+          }
+        }
+      });
+
+      await Promise.all([...imagePromises, ...videoPromises]);
 
       const content = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(content);
@@ -276,6 +341,31 @@ Image URL: ${shot.imageUrl || 'No image generated'}
       setIsDownloading(false);
     }
   };
+
+  const shotsWithClips = shots.filter(s => s.videoUrl);
+  const allClipsGenerated = shots.length > 0 && shots.every(s => s.videoUrl);
+
+  const handlePlayAll = () => {
+    if (shotsWithClips.length === 0) return;
+    setPlayAllMode(true);
+    setCurrentPlayingIndex(0);
+  };
+
+  const handleVideoEnded = useCallback(() => {
+    if (currentPlayingIndex < shotsWithClips.length - 1) {
+      setCurrentPlayingIndex(prev => prev + 1);
+    } else {
+      setPlayAllMode(false);
+      setCurrentPlayingIndex(0);
+    }
+  }, [currentPlayingIndex, shotsWithClips.length]);
+
+  useEffect(() => {
+    if (playAllMode && playAllVideoRef.current && shotsWithClips[currentPlayingIndex]?.videoUrl) {
+      playAllVideoRef.current.src = shotsWithClips[currentPlayingIndex].videoUrl!;
+      playAllVideoRef.current.play().catch(console.error);
+    }
+  }, [playAllMode, currentPlayingIndex, shotsWithClips]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
@@ -346,9 +436,30 @@ Image URL: ${shot.imageUrl || 'No image generated'}
         {shots.length > 0 && (
           <div className="mt-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-                Your Storyboard
-              </h3>
+              <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-700">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('storyboard')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'storyboard'
+                      ? 'text-zinc-900 dark:text-zinc-100 border-[var(--brand-primary)]'
+                      : 'text-zinc-500 dark:text-zinc-400 border-transparent hover:text-zinc-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  Storyboard
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('clips')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'clips'
+                      ? 'text-zinc-900 dark:text-zinc-100 border-[var(--brand-primary)]'
+                      : 'text-zinc-500 dark:text-zinc-400 border-transparent hover:text-zinc-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  Clips {shotsWithClips.length > 0 && `(${shotsWithClips.length})`}
+                </button>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <input
                   type="text"
@@ -360,7 +471,7 @@ Image URL: ${shot.imageUrl || 'No image generated'}
                 <button
                   onClick={handleSave}
                   disabled={isSaving || shots.length === 0}
-                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-zinc-400 disabled:cursor-not-allowed rounded transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSaving ? 'Saving...' : 'Save'}
                 </button>
@@ -379,93 +490,220 @@ Image URL: ${shot.imageUrl || 'No image generated'}
                 </button>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {shots.map((shot, index) => (
-                <div
-                  key={shot.id}
-                  className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative"
-                >
-                  <button
-                    onClick={() => handleDeleteShot(shot.id)}
-                    className="absolute top-2 right-2 z-10 w-8 h-8 bg-red-500/90 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Delete shot"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                      className="w-4 h-4"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                      />
-                    </svg>
-                  </button>
 
-                  <div className="relative">
-                    <div className="aspect-video bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center overflow-hidden">
-                      {shot.imageUrl ? (
-                        <img
-                          src={shot.imageUrl}
-                          alt={shot.title}
-                          className="w-full h-full object-cover"
+            {activeTab === 'storyboard' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {shots.map((shot, index) => (
+                  <div
+                    key={shot.id}
+                    className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative flex flex-col"
+                  >
+                    <button
+                      onClick={() => handleDeleteShot(shot.id)}
+                      className="absolute top-2 right-2 z-10 w-8 h-8 bg-red-500/90 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete shot"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
+                        className="w-4 h-4"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
                         />
-                      ) : shot.isGeneratingImage ? (
-                        <div className="text-center p-4">
-                          <div className="brand-spinner w-8 h-8 mx-auto mb-2"></div>
-                          <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                            Generating image...
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="text-center p-4">
-                          <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-zinc-200 dark:bg-zinc-600 flex items-center justify-center">
-                            <span className="text-2xl font-bold text-zinc-400 dark:text-zinc-500">
-                              {index + 1}
-                            </span>
+                      </svg>
+                    </button>
+
+                    <div className="relative">
+                      <div className="aspect-video bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center overflow-hidden">
+                        {shot.imageUrl ? (
+                          <img
+                            src={shot.imageUrl}
+                            alt={shot.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : shot.isGeneratingImage ? (
+                          <div className="text-center p-4">
+                            <div className="brand-spinner w-8 h-8 mx-auto mb-2"></div>
+                            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                              Generating image...
+                            </p>
                           </div>
-                          <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
-                            Shot {index + 1}
-                          </p>
+                        ) : (
+                          <div className="text-center p-4">
+                            <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-zinc-200 dark:bg-zinc-600 flex items-center justify-center">
+                              <span className="text-2xl font-bold text-zinc-400 dark:text-zinc-500">
+                                {index + 1}
+                              </span>
+                            </div>
+                            <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+                              Shot {index + 1}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                        {shot.title}
+                      </div>
+                      {shot.videoUrl && (
+                        <div className="absolute bottom-2 right-2 bg-green-500/90 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                          </svg>
+                          Clip
                         </div>
                       )}
                     </div>
-                    <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                      {shot.title}
+
+                    <div className="p-4 flex-1 flex flex-col">
+                      <textarea
+                        value={shot.description}
+                        onChange={(e) => {
+                          handleUpdateDescription(shot.id, e.target.value);
+                          e.target.style.height = 'auto';
+                          e.target.style.height = e.target.scrollHeight + 'px';
+                        }}
+                        className="w-full text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed bg-transparent border-none resize-none focus:outline-none focus:ring-0 p-0 overflow-hidden auto-resize-textarea flex-1"
+                      />
+                      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700 space-y-2">
+                        <button
+                          onClick={() => handleGenerateImage(shot.id)}
+                          disabled={shot.isGeneratingImage}
+                          className="w-full px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {shot.isGeneratingImage
+                            ? 'Generating...'
+                            : shot.imageUrl
+                            ? 'Regenerate Image'
+                            : 'Generate Image'}
+                        </button>
+                        <button
+                          onClick={() => handleGenerateClip(shot.id)}
+                          disabled={shot.isGeneratingVideo}
+                          className="w-full px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {shot.isGeneratingVideo
+                            ? 'Creating Clip...'
+                            : shot.videoUrl
+                            ? 'Recreate Clip'
+                            : 'Create Clip'}
+                        </button>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {shotsWithClips.length === 0 ? (
+                  <div className="text-center py-12 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 mx-auto text-zinc-400 dark:text-zinc-500 mb-4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-3.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0118 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-3.75 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m1.5-3.75C5.496 8.25 6 7.746 6 7.125v-1.5M4.875 8.25C5.496 8.25 6 8.754 6 9.375v1.5m0-5.25v5.25m0-5.25C6 5.004 6.504 4.5 7.125 4.5h9.75c.621 0 1.125.504 1.125 1.125m1.125 2.625h1.5m-1.5 0A1.125 1.125 0 0118 7.125v-1.5m1.125 2.625c-.621 0-1.125.504-1.125 1.125v1.5m2.625-2.625c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125M18 5.625v5.25M7.125 12h9.75m-9.75 0A1.125 1.125 0 016 10.875M7.125 12C6.504 12 6 12.504 6 13.125m0-2.25C6 11.496 5.496 12 4.875 12M18 10.875c0 .621-.504 1.125-1.125 1.125M18 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m-12 5.25v-5.25m0 5.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125m-12 0v-1.5c0-.621-.504-1.125-1.125-1.125M18 18.375v-5.25m0 5.25v-1.5c0-.621.504-1.125 1.125-1.125M18 13.125v1.5c0 .621.504 1.125 1.125 1.125M18 13.125c0-.621.504-1.125 1.125-1.125M6 13.125v1.5c0 .621-.504 1.125-1.125 1.125M6 13.125C6 12.504 5.496 12 4.875 12m-1.5 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M19.125 12h1.5m0 0c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h1.5m14.25 0h1.5" />
+                    </svg>
+                    <p className="text-zinc-600 dark:text-zinc-400 mb-2">
+                      No clips generated yet.
+                    </p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                      Click "Create Clip" on each shot in the Storyboard tab to generate video clips.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {!allClipsGenerated && (
+                      <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                        <p className="text-amber-700 dark:text-amber-400 text-sm">
+                          {shotsWithClips.length} of {shots.length} clips generated. Go to the Storyboard tab to create the remaining clips.
+                        </p>
+                      </div>
+                    )}
 
-                  <div className="p-4">
-                    <textarea
-                      value={shot.description}
-                      onChange={(e) => {
-                        handleUpdateDescription(shot.id, e.target.value);
-                        e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
-                      }}
-                      className="w-full text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed bg-transparent border-none resize-none focus:outline-none focus:ring-0 p-0 overflow-hidden auto-resize-textarea"
-                    />
-                    <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700">
+                    <div className="flex justify-end">
                       <button
-                        onClick={() => handleGenerateImage(shot.id)}
-                        disabled={shot.isGeneratingImage}
-                        className="w-full text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed py-2 px-3 rounded border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors"
+                        onClick={handlePlayAll}
+                        className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors flex items-center gap-2"
                       >
-                        {shot.isGeneratingImage
-                          ? 'Generating...'
-                          : shot.imageUrl
-                          ? 'Regenerate Image'
-                          : 'Generate Image'}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                        </svg>
+                        Play All
                       </button>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+
+                    {playAllMode && (
+                      <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm">
+                        <div className="relative">
+                          <video
+                            ref={playAllVideoRef}
+                            className="w-full aspect-video bg-zinc-100 dark:bg-zinc-900"
+                            controls
+                            onEnded={handleVideoEnded}
+                          />
+                        </div>
+                        <div className="p-4">
+                          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                            {shotsWithClips[currentPlayingIndex]?.title} ({currentPlayingIndex + 1} of {shotsWithClips.length}) - {shotsWithClips[currentPlayingIndex]?.description}
+                          </p>
+                          <div className="mt-3 flex gap-1">
+                            {shotsWithClips.map((_, idx) => (
+                              <div
+                                key={idx}
+                                className={`h-1 flex-1 rounded-full transition-colors ${
+                                  idx < currentPlayingIndex
+                                    ? 'bg-green-500'
+                                    : idx === currentPlayingIndex
+                                    ? 'bg-blue-500'
+                                    : 'bg-zinc-200 dark:bg-zinc-700'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => {
+                              setPlayAllMode(false);
+                              setCurrentPlayingIndex(0);
+                            }}
+                            className="mt-3 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors"
+                          >
+                            Exit Play All
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {shots.filter(s => s.videoUrl).map((shot, index) => (
+                        <div
+                          key={shot.id}
+                          className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm"
+                        >
+                          <div className="relative">
+                            <video
+                              src={shot.videoUrl}
+                              className="w-full aspect-video bg-zinc-100 dark:bg-zinc-900"
+                              controls
+                              loop
+                            />
+                            <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                              {shot.title}
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            <p className="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                              {shot.description}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
