@@ -11,6 +11,19 @@ const MODEL = 'anthropic/claude-3.5-haiku';
 
 const STORYBOARD_SYSTEM_INSTRUCTIONS = `You are an expert animator. You understand how to best deconstruct a story into the most interesting shots in order to tell the story. When provided a story, you can break it down scene-by-scene and then shot by shot and provide descriptions of what happens in each shot.
 
+CRITICAL - CHARACTER/SUBJECT CONSISTENCY:
+Before breaking down the story into shots, you MUST:
+1. Identify ALL characters, animals, creatures, and significant objects that appear across multiple shots
+2. For each one, create a DETAILED visual description that will be used consistently throughout
+3. When a character/subject first appears in a shot, describe them in FULL DETAIL (appearance, colors, markings, clothing, distinctive features)
+4. In ALL subsequent shots featuring that same character/subject, use THE EXACT SAME visual description
+
+Example of consistency:
+- Shot 1: "A golden retriever with floppy ears, a white chest patch, and a red collar sits by the door..."
+- Shot 3: "The golden retriever with floppy ears, white chest patch, and red collar runs through the park..." (same description, different action)
+
+Do NOT change descriptions between shots. A brown dog in shot 1 must remain a brown dog in shot 5.
+
 For each shot, provide:
 1. A short title (2-4 words)
 2. A detailed visual description of what appears in the shot (camera angle, subject, action, setting, movement)
