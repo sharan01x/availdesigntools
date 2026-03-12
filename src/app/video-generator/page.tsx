@@ -397,12 +397,23 @@ Clip URLs: ${shot.clipUrls?.map(c => c.url).join(', ') || 'No clips generated'}
   const shotsWithClips = shots.filter(s => s.clipUrls && s.clipUrls.length > 0);
   const allClipsGenerated = shots.length > 0 && shots.every(s => s.clipUrls && s.clipUrls.length > 0);
 
+  const toAbsoluteUrl = (url: string): string => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`;
+    }
+    return url;
+  };
+
   const handlePlayAll = async () => {
     if (shotsWithClips.length === 0) return;
 
     const clipUrls = shotsWithClips
       .map(shot => shot.clipUrls?.[shot.selectedClipIndex ?? 0]?.url)
-      .filter((url): url is string => typeof url === 'string');
+      .filter((url): url is string => typeof url === 'string')
+      .map(toAbsoluteUrl);
 
     if (clipUrls.length < 2) {
       return;

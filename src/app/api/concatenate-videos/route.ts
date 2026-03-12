@@ -8,7 +8,7 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY || '',
 });
 
-const MODEL = 'bfirsh/concatenate-videos';
+const MODEL = 'bfirsh/concatenate-videos:03c0802dc63ff01bb16f967f9ce4d7a784cbb697e9e7a593dd5f08bb83807ced';
 
 async function extractVideoUrl(output: unknown): Promise<string | null> {
   if (typeof output === 'string') {
