@@ -68,8 +68,10 @@ function VideoGeneratorContent() {
   const [isLoadingSaved, setIsLoadingSaved] = useState(false);
 
   const [playAllMode, setPlayAllMode] = useState(false);
-  const [currentPlayingIndex, setCurrentPlayingIndex] = useState(0);
   const playAllVideoRef = useRef<HTMLVideoElement>(null);
+
+  const [concatenatedVideoUrl, setConcatenatedVideoUrl] = useState<string | null>(null);
+  const [isConcatenating, setIsConcatenating] = useState(false);
 
   const [videoStylePrompt, setVideoStylePrompt] = useState(DEFAULT_VIDEO_STYLE_PROMPT);
   const [showStyleGuideModal, setShowStyleGuideModal] = useState(false);
@@ -395,31 +397,41 @@ Clip URLs: ${shot.clipUrls?.map(c => c.url).join(', ') || 'No clips generated'}
   const shotsWithClips = shots.filter(s => s.clipUrls && s.clipUrls.length > 0);
   const allClipsGenerated = shots.length > 0 && shots.every(s => s.clipUrls && s.clipUrls.length > 0);
 
-  const handlePlayAll = () => {
+  const handlePlayAll = async () => {
     if (shotsWithClips.length === 0) return;
-    setPlayAllMode(true);
-    setCurrentPlayingIndex(0);
-  };
 
-  const handleVideoEnded = useCallback(() => {
-    if (currentPlayingIndex < shotsWithClips.length - 1) {
-      setCurrentPlayingIndex(prev => prev + 1);
-    } else {
-      setPlayAllMode(false);
-      setCurrentPlayingIndex(0);
+    const clipUrls = shotsWithClips
+      .map(shot => shot.clipUrls?.[shot.selectedClipIndex ?? 0]?.url)
+      .filter((url): url is string => typeof url === 'string');
+
+    if (clipUrls.length < 2) {
+      return;
     }
-  }, [currentPlayingIndex, shotsWithClips.length]);
 
-  useEffect(() => {
-    if (playAllMode && playAllVideoRef.current) {
-      const shot = shotsWithClips[currentPlayingIndex];
-      const clipUrl = shot?.clipUrls?.[shot.selectedClipIndex ?? 0]?.url;
-      if (clipUrl) {
-        playAllVideoRef.current.src = clipUrl;
-        playAllVideoRef.current.play().catch(console.error);
+    setIsConcatenating(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/concatenate-videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoUrls: clipUrls }),
+      });
+
+      const data = await parseApiResponse(response);
+
+      if (!response.ok || !data.success) {
+        throw new Error((data.error as string) || 'Failed to concatenate videos');
       }
+
+      setConcatenatedVideoUrl(data.videoUrl as string);
+      setPlayAllMode(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to concatenate videos');
+    } finally {
+      setIsConcatenating(false);
     }
-  }, [playAllMode, currentPlayingIndex, shotsWithClips]);
+  };
 
   const getCurrentClipUrl = (shot: Shot): string | undefined => {
     return shot.clipUrls?.[shot.selectedClipIndex ?? 0]?.url;
@@ -564,52 +576,49 @@ Clip URLs: ${shot.clipUrls?.map(c => c.url).join(', ') || 'No clips generated'}
                   <div className="flex justify-end">
                     <button
                       onClick={handlePlayAll}
-                      className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors flex items-center gap-2"
+                      disabled={isConcatenating}
+                      className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-                      </svg>
-                      Play All
+                      {isConcatenating ? (
+                        <>
+                          <div className="brand-spinner w-4 h-4"></div>
+                          Concatenating...
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                          </svg>
+                          Play All
+                        </>
+                      )}
                     </button>
                   </div>
                 )}
 
-                {playAllMode && (
+                {playAllMode && concatenatedVideoUrl && (
                   <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm">
                     <div className="relative">
                       <video
                         ref={playAllVideoRef}
+                        src={concatenatedVideoUrl}
                         className="w-full aspect-video bg-zinc-100 dark:bg-zinc-900"
                         controls
-                        onEnded={handleVideoEnded}
+                        autoPlay
                       />
                     </div>
                     <div className="p-4">
                       <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                        {shotsWithClips[currentPlayingIndex]?.title} ({currentPlayingIndex + 1} of {shotsWithClips.length}) - {shotsWithClips[currentPlayingIndex]?.description}
+                        Playing all {shotsWithClips.length} clips concatenated
                       </p>
-                      <div className="mt-3 flex gap-1">
-                        {shotsWithClips.map((_, idx) => (
-                          <div
-                            key={idx}
-                            className={`h-1 flex-1 rounded-full transition-colors ${
-                              idx < currentPlayingIndex
-                                ? 'bg-green-500'
-                                : idx === currentPlayingIndex
-                                ? 'bg-blue-500'
-                                : 'bg-zinc-200 dark:bg-zinc-700'
-                            }`}
-                          />
-                        ))}
-                      </div>
                       <button
                         onClick={() => {
                           setPlayAllMode(false);
-                          setCurrentPlayingIndex(0);
+                          setConcatenatedVideoUrl(null);
                         }}
                         className="mt-3 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors"
                       >
-                        Exit Play All
+                        Close
                       </button>
                     </div>
                   </div>
