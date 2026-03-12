@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Replicate from 'replicate';
-import { downloadAndStoreMedia } from '@/lib/media-storage';
+import { downloadAndStoreMedia } from '@/lib/blob-storage';
 
 export const runtime = 'nodejs';
 

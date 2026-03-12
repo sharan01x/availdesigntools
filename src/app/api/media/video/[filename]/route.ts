@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
-import { getMediaPath } from '@/lib/media-storage';
+import { getLocalMediaPath } from '@/lib/blob-storage';
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { filename } = await params;
-    const filePath = await getMediaPath(filename, 'video');
+    const filePath = await getLocalMediaPath(filename, 'video');
     
     if (!filePath) {
       return NextResponse.json({ error: 'Video not found' }, { status: 404 });

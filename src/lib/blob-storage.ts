@@ -1,19 +1,20 @@
-import { mkdir, writeFile, unlink } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { put, del, head } from '@vercel/blob';
+import { put, del, head, list } from '@vercel/blob';
 
 const isProduction = process.env.VERCEL === '1';
 
-export const LOCAL_MEDIA_DIR = path.join(process.cwd(), 'data', 'media');
+export const LOCAL_DATA_DIR = path.join(process.cwd(), 'data');
+export const LOCAL_MEDIA_DIR = path.join(LOCAL_DATA_DIR, 'media');
 export const LOCAL_IMAGES_DIR = path.join(LOCAL_MEDIA_DIR, 'images');
 export const LOCAL_VIDEOS_DIR = path.join(LOCAL_MEDIA_DIR, 'videos');
 
-export function generateMediaId(): string {
+export function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-async function ensureLocalMediaDirs(): Promise<void> {
+async function ensureLocalDirs(): Promise<void> {
   await mkdir(LOCAL_IMAGES_DIR, { recursive: true });
   await mkdir(LOCAL_VIDEOS_DIR, { recursive: true });
 }
@@ -45,7 +46,7 @@ export async function downloadAndStoreMedia(
     }
   }
 
-  const mediaId = generateMediaId();
+  const mediaId = generateId();
   const filename = `${mediaId}.${extension}`;
 
   if (isProduction) {
@@ -61,7 +62,7 @@ export async function downloadAndStoreMedia(
 
     return blob.url;
   } else {
-    await ensureLocalMediaDirs();
+    await ensureLocalDirs();
     
     const dir = type === 'image' ? LOCAL_IMAGES_DIR : LOCAL_VIDEOS_DIR;
     const filePath = path.join(dir, filename);
@@ -75,7 +76,36 @@ export async function downloadAndStoreMedia(
   }
 }
 
-export async function getMediaPath(
+export async function storeBuffer(
+  buffer: Buffer,
+  type: 'image' | 'video',
+  extension: string
+): Promise<string> {
+  const mediaId = generateId();
+  const filename = `${mediaId}.${extension}`;
+
+  if (isProduction) {
+    const blob = await put(`media/${type}/${filename}`, buffer, {
+      access: 'public',
+      contentType: type === 'image' 
+        ? (extension === 'png' ? 'image/png' : extension === 'gif' ? 'image/gif' : extension === 'webp' ? 'image/webp' : 'image/jpeg')
+        : (extension === 'webm' ? 'video/webm' : 'video/mp4'),
+    });
+
+    return blob.url;
+  } else {
+    await ensureLocalDirs();
+    
+    const dir = type === 'image' ? LOCAL_IMAGES_DIR : LOCAL_VIDEOS_DIR;
+    const filePath = path.join(dir, filename);
+
+    await writeFile(filePath, buffer);
+
+    return `/api/media/${type}/${filename}`;
+  }
+}
+
+export async function getLocalMediaPath(
   filename: string,
   type: 'image' | 'video'
 ): Promise<string | null> {
@@ -94,18 +124,21 @@ export async function getMediaPath(
 }
 
 export async function deleteMedia(
-  filename: string,
-  type: 'image' | 'video'
+  url: string
 ): Promise<boolean> {
   if (isProduction) {
     try {
-      const blobUrl = `https://${process.env.BLOB_READ_WRITE_TOKEN?.split('_')[0]}.blob.vercel-storage.com/media/${type}/${filename}`;
-      await del(blobUrl);
+      await del(url);
       return true;
     } catch {
       return false;
     }
   }
+
+  const filename = extractFilenameFromUrl(url);
+  const type = url.includes('/image/') ? 'image' : 'video';
+  
+  if (!filename) return false;
 
   const dir = type === 'image' ? LOCAL_IMAGES_DIR : LOCAL_VIDEOS_DIR;
   const filePath = path.join(dir, filename);
@@ -121,25 +154,68 @@ export async function deleteMedia(
   return false;
 }
 
-export async function mediaExists(url: string): Promise<boolean> {
-  if (url.startsWith('http')) {
-    if (url.includes('blob.vercel-storage.com')) {
-      try {
-        const blobInfo = await head(url);
-        return !!blobInfo;
-      } catch {
-        return false;
-      }
-    }
+export async function readJsonFile<T>(filename: string): Promise<T | null> {
+  if (isProduction) {
     try {
-      const response = await fetch(url, { method: 'HEAD' });
-      return response.ok;
+      const blobInfo = await head(filename);
+      if (!blobInfo) {
+        return null;
+      }
+      const response = await fetch(blobInfo.url);
+      const text = await response.text();
+      return JSON.parse(text) as T;
     } catch {
-      return false;
+      return null;
+    }
+  } else {
+    try {
+      await mkdir(LOCAL_DATA_DIR, { recursive: true });
+      const filePath = path.join(LOCAL_DATA_DIR, filename);
+      if (!existsSync(filePath)) {
+        return null;
+      }
+      const content = await readFile(filePath, 'utf-8');
+      return JSON.parse(content) as T;
+    } catch {
+      return null;
     }
   }
-  
-  return false;
+}
+
+export async function writeJsonFile<T>(filename: string, data: T): Promise<void> {
+  const content = JSON.stringify(data, null, 2);
+
+  if (isProduction) {
+    await put(filename, content, {
+      access: 'public',
+      contentType: 'application/json',
+      allowOverwrite: true,
+    });
+  } else {
+    await mkdir(LOCAL_DATA_DIR, { recursive: true });
+    const filePath = path.join(LOCAL_DATA_DIR, filename);
+    await writeFile(filePath, content, 'utf-8');
+  }
+}
+
+export async function listMedia(type: 'image' | 'video'): Promise<Array<{ url: string; size: number; uploadedAt: Date }>> {
+  if (!isProduction) {
+    return [];
+  }
+
+  try {
+    const { blobs } = await list({
+      prefix: `media/${type}/`,
+    });
+
+    return blobs.map(blob => ({
+      url: blob.url,
+      size: blob.size,
+      uploadedAt: blob.uploadedAt,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export function extractFilenameFromPath(mediaPath: string): string | null {
@@ -151,3 +227,5 @@ export function extractFilenameFromUrl(url: string): string | null {
   const match = url.match(/\/media\/(image|video)\/([^/?]+)(?:\?|$)/);
   return match ? match[2] : null;
 }
+
+export const isProductionEnv = isProduction;

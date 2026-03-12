@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
-import { getMediaPath } from '@/lib/media-storage';
+import { getLocalMediaPath } from '@/lib/blob-storage';
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { filename } = await params;
-    const filePath = await getMediaPath(filename, 'image');
+    const filePath = await getLocalMediaPath(filename, 'image');
     
     if (!filePath) {
       return NextResponse.json({ error: 'Image not found' }, { status: 404 });
