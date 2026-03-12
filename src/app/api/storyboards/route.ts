@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { put, head } from '@vercel/blob';
 
 export const runtime = 'nodejs';
+
+const isProduction = process.env.VERCEL === '1';
 
 interface Shot {
   id: number;
@@ -22,16 +25,29 @@ interface Storyboard {
   updatedAt: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const STORYBOARDS_PATH = path.join(DATA_DIR, 'storyboards.json');
+const LOCAL_DATA_DIR = path.join(process.cwd(), 'data');
+const LOCAL_STORYBOARDS_PATH = path.join(LOCAL_DATA_DIR, 'storyboards.json');
 
-async function ensureStoragePaths(): Promise<void> {
-  await mkdir(DATA_DIR, { recursive: true });
+async function ensureLocalStoragePaths(): Promise<void> {
+  await mkdir(LOCAL_DATA_DIR, { recursive: true });
 }
 
 async function readStoryboards(): Promise<Storyboard[]> {
   try {
-    const raw = await readFile(STORYBOARDS_PATH, 'utf-8');
+    let raw: string;
+
+    if (isProduction) {
+      const blobInfo = await head('storyboards.json');
+      if (!blobInfo) {
+        return [];
+      }
+      const response = await fetch(blobInfo.url);
+      raw = await response.text();
+    } else {
+      await ensureLocalStoragePaths();
+      raw = await readFile(LOCAL_STORYBOARDS_PATH, 'utf-8');
+    }
+
     const parsed = JSON.parse(raw) as unknown;
 
     if (!Array.isArray(parsed)) {
@@ -58,7 +74,18 @@ async function readStoryboards(): Promise<Storyboard[]> {
 }
 
 async function writeStoryboards(storyboards: Storyboard[]): Promise<void> {
-  await writeFile(STORYBOARDS_PATH, JSON.stringify(storyboards, null, 2), 'utf-8');
+  const content = JSON.stringify(storyboards, null, 2);
+
+  if (isProduction) {
+    await put('storyboards.json', content, {
+      access: 'public',
+      contentType: 'application/json',
+      allowOverwrite: true,
+    });
+  } else {
+    await ensureLocalStoragePaths();
+    await writeFile(LOCAL_STORYBOARDS_PATH, content, 'utf-8');
+  }
 }
 
 function generateId(): string {
@@ -67,12 +94,11 @@ function generateId(): string {
 
 export async function GET(request: NextRequest) {
   try {
-    await ensureStoragePaths();
     const storyboards = await readStoryboards();
-    
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    
+
     if (id) {
       const storyboard = storyboards.find(s => s.id === id);
       if (!storyboard) {
@@ -80,7 +106,7 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json({ success: true, storyboard });
     }
-    
+
     const listItems = storyboards.map(({ id, title, concept, createdAt, updatedAt, shots }) => ({
       id,
       title,
@@ -89,7 +115,7 @@ export async function GET(request: NextRequest) {
       updatedAt,
       shotCount: shots.length,
     }));
-    
+
     return NextResponse.json({ success: true, storyboards: listItems });
   } catch (error) {
     return NextResponse.json(
@@ -101,16 +127,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await ensureStoragePaths();
-    
     const body = await request.json() as { title?: unknown; concept?: unknown; shots?: unknown };
-    
-    const title = typeof body.title === 'string' && body.title.trim() 
-      ? body.title.trim() 
+
+    const title = typeof body.title === 'string' && body.title.trim()
+      ? body.title.trim()
       : `Storyboard ${new Date().toLocaleDateString()}`;
     const concept = typeof body.concept === 'string' ? body.concept : '';
     const shots = Array.isArray(body.shots) ? body.shots : [];
-    
+
     const now = new Date().toISOString();
     const newStoryboard: Storyboard = {
       id: generateId(),
@@ -127,12 +151,12 @@ export async function POST(request: NextRequest) {
       createdAt: now,
       updatedAt: now,
     };
-    
+
     const existing = await readStoryboards();
     const storyboards = [newStoryboard, ...existing];
-    
+
     await writeStoryboards(storyboards);
-    
+
     return NextResponse.json({ success: true, storyboard: newStoryboard });
   } catch (error) {
     return NextResponse.json(
@@ -144,27 +168,25 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    await ensureStoragePaths();
-    
     const body = await request.json() as { id?: unknown; title?: unknown; concept?: unknown; shots?: unknown };
-    
+
     if (typeof body.id !== 'string') {
       return NextResponse.json({ success: false, error: 'Storyboard ID is required' }, { status: 400 });
     }
-    
+
     const storyboards = await readStoryboards();
     const index = storyboards.findIndex(s => s.id === body.id);
-    
+
     if (index === -1) {
       return NextResponse.json({ success: false, error: 'Storyboard not found' }, { status: 404 });
     }
-    
+
     const existing = storyboards[index];
     const updated: Storyboard = {
       ...existing,
       title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : existing.title,
       concept: typeof body.concept === 'string' ? body.concept : existing.concept,
-      shots: Array.isArray(body.shots) 
+      shots: Array.isArray(body.shots)
         ? body.shots.map((shot, i) => ({
             id: typeof shot.id === 'number' ? shot.id : i + 1,
             title: typeof shot.title === 'string' ? shot.title : `Shot ${i + 1}`,
@@ -176,10 +198,10 @@ export async function PUT(request: NextRequest) {
         : existing.shots,
       updatedAt: new Date().toISOString(),
     };
-    
+
     storyboards[index] = updated;
     await writeStoryboards(storyboards);
-    
+
     return NextResponse.json({ success: true, storyboard: updated });
   } catch (error) {
     return NextResponse.json(
@@ -191,24 +213,22 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await ensureStoragePaths();
-    
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    
+
     if (!id) {
       return NextResponse.json({ success: false, error: 'Storyboard ID is required' }, { status: 400 });
     }
-    
+
     const storyboards = await readStoryboards();
     const filtered = storyboards.filter(s => s.id !== id);
-    
+
     if (filtered.length === storyboards.length) {
       return NextResponse.json({ success: false, error: 'Storyboard not found' }, { status: 404 });
     }
-    
+
     await writeStoryboards(filtered);
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json(
