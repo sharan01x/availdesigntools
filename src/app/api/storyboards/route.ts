@@ -3,13 +3,19 @@ import { readJsonFile, writeJsonFile, generateId } from '@/lib/blob-storage';
 
 export const runtime = 'nodejs';
 
+interface ClipVersion {
+  url: string;
+  createdAt: string;
+}
+
 interface Shot {
   id: number;
   title: string;
   description: string;
   visualPrompt: string;
   imageUrl?: string;
-  videoUrl?: string;
+  clipUrls?: ClipVersion[];
+  selectedClipIndex?: number;
 }
 
 interface Storyboard {
@@ -17,6 +23,7 @@ interface Storyboard {
   title: string;
   concept: string;
   shots: Shot[];
+  videoStylePrompt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,13 +79,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as { title?: unknown; concept?: unknown; shots?: unknown };
+    const body = await request.json() as { title?: unknown; concept?: unknown; shots?: unknown; videoStylePrompt?: unknown };
 
     const title = typeof body.title === 'string' && body.title.trim()
       ? body.title.trim()
       : `Storyboard ${new Date().toLocaleDateString()}`;
     const concept = typeof body.concept === 'string' ? body.concept : '';
     const shots = Array.isArray(body.shots) ? body.shots : [];
+    const videoStylePrompt = typeof body.videoStylePrompt === 'string' ? body.videoStylePrompt : undefined;
 
     const now = new Date().toISOString();
     const newStoryboard: Storyboard = {
@@ -91,8 +99,10 @@ export async function POST(request: NextRequest) {
         description: typeof shot.description === 'string' ? shot.description : '',
         visualPrompt: typeof shot.visualPrompt === 'string' ? shot.visualPrompt : '',
         imageUrl: typeof shot.imageUrl === 'string' ? shot.imageUrl : undefined,
-        videoUrl: typeof shot.videoUrl === 'string' ? shot.videoUrl : undefined,
+        clipUrls: Array.isArray(shot.clipUrls) ? shot.clipUrls : undefined,
+        selectedClipIndex: typeof shot.selectedClipIndex === 'number' ? shot.selectedClipIndex : undefined,
       })),
+      videoStylePrompt,
       createdAt: now,
       updatedAt: now,
     };
@@ -113,7 +123,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json() as { id?: unknown; title?: unknown; concept?: unknown; shots?: unknown };
+    const body = await request.json() as { id?: unknown; title?: unknown; concept?: unknown; shots?: unknown; videoStylePrompt?: unknown };
 
     if (typeof body.id !== 'string') {
       return NextResponse.json({ success: false, error: 'Storyboard ID is required' }, { status: 400 });
@@ -138,9 +148,11 @@ export async function PUT(request: NextRequest) {
             description: typeof shot.description === 'string' ? shot.description : '',
             visualPrompt: typeof shot.visualPrompt === 'string' ? shot.visualPrompt : '',
             imageUrl: typeof shot.imageUrl === 'string' ? shot.imageUrl : undefined,
-            videoUrl: typeof shot.videoUrl === 'string' ? shot.videoUrl : undefined,
+            clipUrls: Array.isArray(shot.clipUrls) ? shot.clipUrls : undefined,
+            selectedClipIndex: typeof shot.selectedClipIndex === 'number' ? shot.selectedClipIndex : undefined,
           }))
         : existing.shots,
+      videoStylePrompt: typeof body.videoStylePrompt === 'string' ? body.videoStylePrompt : existing.videoStylePrompt,
       updatedAt: new Date().toISOString(),
     };
 

@@ -5,13 +5,19 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import JSZip from 'jszip';
 
+interface ClipVersion {
+  url: string;
+  createdAt: string;
+}
+
 interface Shot {
   id: number;
   title: string;
   description: string;
   visualPrompt: string;
   imageUrl?: string;
-  videoUrl?: string;
+  clipUrls?: ClipVersion[];
+  selectedClipIndex?: number;
   isGeneratingImage?: boolean;
   isGeneratingVideo?: boolean;
 }
@@ -24,6 +30,8 @@ interface StoryboardListItem {
   updatedAt: string;
   shotCount: number;
 }
+
+const DEFAULT_VIDEO_STYLE_PROMPT = 'Cinematic style, smooth camera movements, professional lighting, high quality video production.';
 
 async function parseApiResponse(response: Response): Promise<Record<string, unknown>> {
   const rawBody = await response.text();
@@ -62,6 +70,12 @@ function VideoGeneratorContent() {
   const [playAllMode, setPlayAllMode] = useState(false);
   const [currentPlayingIndex, setCurrentPlayingIndex] = useState(0);
   const playAllVideoRef = useRef<HTMLVideoElement>(null);
+
+  const [videoStylePrompt, setVideoStylePrompt] = useState(DEFAULT_VIDEO_STYLE_PROMPT);
+  const [showStyleGuideModal, setShowStyleGuideModal] = useState(false);
+  const [showVideoLightbox, setShowVideoLightbox] = useState(false);
+  const [lightboxVideoUrl, setLightboxVideoUrl] = useState<string | null>(null);
+  const [lightboxVideoTitle, setLightboxVideoTitle] = useState<string>('');
 
   useEffect(() => {
     if (showLoadModal) {
@@ -180,12 +194,13 @@ function VideoGeneratorContent() {
     );
 
     try {
+      const fullPrompt = `${shot.description}\n\nStyle: ${videoStylePrompt}`;
+
       const response = await fetch('/api/generate-clip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: shot.description,
-          imageUrl: shot.imageUrl,
+          prompt: fullPrompt,
           draft: true,
           duration: 5,
         }),
@@ -197,12 +212,25 @@ function VideoGeneratorContent() {
         throw new Error((data.error as string) || 'Failed to generate clip');
       }
 
+      const newClip: ClipVersion = {
+        url: data.videoUrl as string,
+        createdAt: new Date().toISOString(),
+      };
+
       setShots(
-        shots.map((s) =>
-          s.id === shotId
-            ? { ...s, videoUrl: data.videoUrl as string, isGeneratingVideo: false }
-            : s
-        )
+        shots.map((s) => {
+          if (s.id === shotId) {
+            const existingClips = s.clipUrls || [];
+            const newClipUrls = [...existingClips, newClip];
+            return {
+              ...s,
+              clipUrls: newClipUrls,
+              selectedClipIndex: newClipUrls.length - 1,
+              isGeneratingVideo: false,
+            };
+          }
+          return s;
+        })
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate clip');
@@ -214,6 +242,23 @@ function VideoGeneratorContent() {
     }
   };
 
+  const handleSelectClip = (shotId: number, clipIndex: number) => {
+    setShots(
+      shots.map((s) =>
+        s.id === shotId ? { ...s, selectedClipIndex: clipIndex } : s
+      )
+    );
+  };
+
+  const handlePlayClip = (shot: Shot) => {
+    const clipUrl = shot.clipUrls?.[shot.selectedClipIndex ?? 0]?.url;
+    if (clipUrl) {
+      setLightboxVideoUrl(clipUrl);
+      setLightboxVideoTitle(shot.title);
+      setShowVideoLightbox(true);
+    }
+  };
+
   const handleSave = async () => {
     if (shots.length === 0) return;
 
@@ -222,8 +267,8 @@ function VideoGeneratorContent() {
       const url = '/api/storyboards';
       const method = currentStoryboardId ? 'PUT' : 'POST';
       const body = currentStoryboardId
-        ? { id: currentStoryboardId, title: currentTitle, concept, shots }
-        : { title: currentTitle, concept, shots };
+        ? { id: currentStoryboardId, title: currentTitle, concept, shots, videoStylePrompt }
+        : { title: currentTitle, concept, shots, videoStylePrompt };
 
       const response = await fetch(url, {
         method,
@@ -259,11 +304,14 @@ function VideoGeneratorContent() {
         throw new Error((data.error as string) || 'Failed to load storyboard');
       }
 
-      const storyboard = data.storyboard as { id: string; title: string; concept: string; shots: Shot[] };
+      const storyboard = data.storyboard as { id: string; title: string; concept: string; shots: Shot[]; videoStylePrompt?: string };
       setCurrentStoryboardId(storyboard.id);
       setCurrentTitle(storyboard.title);
       setConcept(storyboard.concept);
       setShots(storyboard.shots);
+      if (storyboard.videoStylePrompt) {
+        setVideoStylePrompt(storyboard.videoStylePrompt);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load storyboard');
@@ -288,13 +336,14 @@ function VideoGeneratorContent() {
 
       const storyboardText = `Storyboard: ${currentTitle || 'Untitled'}
 Concept: ${concept}
+Video Style Prompt: ${videoStylePrompt}
 
 ${shots.map((shot, index) => `
 --- Shot ${index + 1}: ${shot.title} ---
 Description: ${shot.description}
 Visual Prompt: ${shot.visualPrompt}
 Image URL: ${shot.imageUrl || 'No image generated'}
-Video URL: ${shot.videoUrl || 'No video generated'}
+Clip URLs: ${shot.clipUrls?.map(c => c.url).join(', ') || 'No clips generated'}
 `).join('\n')}`;
 
       zip.file('storyboard.txt', storyboardText);
@@ -313,9 +362,10 @@ Video URL: ${shot.videoUrl || 'No video generated'}
       });
 
       const videoPromises = shots.map(async (shot, index) => {
-        if (shot.videoUrl) {
+        const clipUrl = shot.clipUrls?.[shot.selectedClipIndex ?? 0]?.url;
+        if (clipUrl) {
           try {
-            const response = await fetch(shot.videoUrl);
+            const response = await fetch(clipUrl);
             const blob = await response.blob();
             zip.file(`clip-${String(index + 1).padStart(2, '0')}-${shot.title.replace(/[^a-zA-Z0-9]/g, '-')}.mp4`, blob);
           } catch {
@@ -342,8 +392,8 @@ Video URL: ${shot.videoUrl || 'No video generated'}
     }
   };
 
-  const shotsWithClips = shots.filter(s => s.videoUrl);
-  const allClipsGenerated = shots.length > 0 && shots.every(s => s.videoUrl);
+  const shotsWithClips = shots.filter(s => s.clipUrls && s.clipUrls.length > 0);
+  const allClipsGenerated = shots.length > 0 && shots.every(s => s.clipUrls && s.clipUrls.length > 0);
 
   const handlePlayAll = () => {
     if (shotsWithClips.length === 0) return;
@@ -361,11 +411,19 @@ Video URL: ${shot.videoUrl || 'No video generated'}
   }, [currentPlayingIndex, shotsWithClips.length]);
 
   useEffect(() => {
-    if (playAllMode && playAllVideoRef.current && shotsWithClips[currentPlayingIndex]?.videoUrl) {
-      playAllVideoRef.current.src = shotsWithClips[currentPlayingIndex].videoUrl!;
-      playAllVideoRef.current.play().catch(console.error);
+    if (playAllMode && playAllVideoRef.current) {
+      const shot = shotsWithClips[currentPlayingIndex];
+      const clipUrl = shot?.clipUrls?.[shot.selectedClipIndex ?? 0]?.url;
+      if (clipUrl) {
+        playAllVideoRef.current.src = clipUrl;
+        playAllVideoRef.current.play().catch(console.error);
+      }
     }
   }, [playAllMode, currentPlayingIndex, shotsWithClips]);
+
+  const getCurrentClipUrl = (shot: Shot): string | undefined => {
+    return shot.clipUrls?.[shot.selectedClipIndex ?? 0]?.url;
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
@@ -488,115 +546,182 @@ Video URL: ${shot.videoUrl || 'No video generated'}
                 >
                   {isDownloading ? 'Downloading...' : 'Download ZIP'}
                 </button>
+                <button
+                  onClick={() => setShowStyleGuideModal(true)}
+                  className="px-3 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors flex items-center gap-1"
+                  title="Edit video style guide"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715l.815 2.846a4.5 4.5 0 003.09 3.09L24 12l-2.846.813a4.5 4.5 0 00-3.09 3.09L18.259 15.75l-.815-2.846a4.5 4.5 0 00-3.09-3.09L12 8.25l2.846.813a4.5 4.5 0 003.09 3.09z" />
+                  </svg>
+                </button>
               </div>
             </div>
 
             {activeTab === 'storyboard' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {shots.map((shot, index) => (
-                  <div
-                    key={shot.id}
-                    className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative flex flex-col"
-                  >
+              <div className="space-y-6">
+                {shotsWithClips.length > 0 && (
+                  <div className="flex justify-end">
                     <button
-                      onClick={() => handleDeleteShot(shot.id)}
-                      className="absolute top-2 right-2 z-10 w-8 h-8 bg-red-500/90 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete shot"
+                      onClick={handlePlayAll}
+                      className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors flex items-center gap-2"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={2}
-                        stroke="currentColor"
-                        className="w-4 h-4"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                        />
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
                       </svg>
+                      Play All
                     </button>
+                  </div>
+                )}
 
+                {playAllMode && (
+                  <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm">
                     <div className="relative">
-                      <div className="aspect-video bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center overflow-hidden">
-                        {shot.imageUrl ? (
-                          <img
-                            src={shot.imageUrl}
-                            alt={shot.title}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : shot.isGeneratingImage ? (
-                          <div className="text-center p-4">
-                            <div className="brand-spinner w-8 h-8 mx-auto mb-2"></div>
-                            <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                              Generating image...
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="text-center p-4">
-                            <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-zinc-200 dark:bg-zinc-600 flex items-center justify-center">
-                              <span className="text-2xl font-bold text-zinc-400 dark:text-zinc-500">
-                                {index + 1}
-                              </span>
-                            </div>
-                            <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
-                              Shot {index + 1}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                        {shot.title}
-                      </div>
-                      {shot.videoUrl && (
-                        <div className="absolute bottom-2 right-2 bg-green-500/90 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-                          </svg>
-                          Clip
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-4 flex-1 flex flex-col">
-                      <textarea
-                        value={shot.description}
-                        onChange={(e) => {
-                          handleUpdateDescription(shot.id, e.target.value);
-                          e.target.style.height = 'auto';
-                          e.target.style.height = e.target.scrollHeight + 'px';
-                        }}
-                        className="w-full text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed bg-transparent border-none resize-none focus:outline-none focus:ring-0 p-0 overflow-hidden auto-resize-textarea flex-1"
+                      <video
+                        ref={playAllVideoRef}
+                        className="w-full aspect-video bg-zinc-100 dark:bg-zinc-900"
+                        controls
+                        onEnded={handleVideoEnded}
                       />
-                      <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700 space-y-2">
-                        <button
-                          onClick={() => handleGenerateImage(shot.id)}
-                          disabled={shot.isGeneratingImage}
-                          className="w-full px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {shot.isGeneratingImage
-                            ? 'Generating...'
-                            : shot.imageUrl
-                            ? 'Regenerate Image'
-                            : 'Generate Image'}
-                        </button>
-                        <button
-                          onClick={() => handleGenerateClip(shot.id)}
-                          disabled={shot.isGeneratingVideo}
-                          className="w-full px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {shot.isGeneratingVideo
-                            ? 'Creating Clip...'
-                            : shot.videoUrl
-                            ? 'Recreate Clip'
-                            : 'Create Clip'}
-                        </button>
+                    </div>
+                    <div className="p-4">
+                      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                        {shotsWithClips[currentPlayingIndex]?.title} ({currentPlayingIndex + 1} of {shotsWithClips.length}) - {shotsWithClips[currentPlayingIndex]?.description}
+                      </p>
+                      <div className="mt-3 flex gap-1">
+                        {shotsWithClips.map((_, idx) => (
+                          <div
+                            key={idx}
+                            className={`h-1 flex-1 rounded-full transition-colors ${
+                              idx < currentPlayingIndex
+                                ? 'bg-green-500'
+                                : idx === currentPlayingIndex
+                                ? 'bg-blue-500'
+                                : 'bg-zinc-200 dark:bg-zinc-700'
+                            }`}
+                          />
+                        ))}
                       </div>
+                      <button
+                        onClick={() => {
+                          setPlayAllMode(false);
+                          setCurrentPlayingIndex(0);
+                        }}
+                        className="mt-3 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors"
+                      >
+                        Exit Play All
+                      </button>
                     </div>
                   </div>
-                ))}
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {shots.map((shot, index) => (
+                    <div
+                      key={shot.id}
+                      className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative flex flex-col"
+                    >
+                      <button
+                        onClick={() => handleDeleteShot(shot.id)}
+                        className="absolute top-2 right-2 z-10 w-8 h-8 bg-red-500/90 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Delete shot"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={2}
+                          stroke="currentColor"
+                          className="w-4 h-4"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                          />
+                        </svg>
+                      </button>
+
+                      <div className="relative">
+                        <div className="aspect-video bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-700 dark:to-zinc-800 flex items-center justify-center overflow-hidden">
+                          {shot.imageUrl ? (
+                            <img
+                              src={shot.imageUrl}
+                              alt={shot.title}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : shot.isGeneratingImage ? (
+                            <div className="text-center p-4">
+                              <div className="brand-spinner w-8 h-8 mx-auto mb-2"></div>
+                              <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                                Generating image...
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="text-center p-4">
+                              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-zinc-200 dark:bg-zinc-600 flex items-center justify-center">
+                                <span className="text-2xl font-bold text-zinc-400 dark:text-zinc-500">
+                                  {index + 1}
+                                </span>
+                              </div>
+                              <p className="text-xs text-zinc-400 dark:text-zinc-500 uppercase tracking-wide">
+                                Shot {index + 1}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                          {shot.title}
+                        </div>
+                        {shot.clipUrls && shot.clipUrls.length > 0 && (
+                          <button
+                            onClick={() => handlePlayClip(shot)}
+                            className="absolute bottom-2 right-2 w-10 h-10 bg-blue-500/90 hover:bg-blue-600 text-white rounded-full flex items-center justify-center transition-colors shadow-lg"
+                            title="Play clip"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="p-4 flex-1 flex flex-col">
+                        <textarea
+                          value={shot.description}
+                          onChange={(e) => {
+                            handleUpdateDescription(shot.id, e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                          }}
+                          className="w-full text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed bg-transparent border-none resize-none focus:outline-none focus:ring-0 p-0 overflow-hidden auto-resize-textarea flex-1"
+                        />
+                        <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700 space-y-2">
+                          <button
+                            onClick={() => handleGenerateImage(shot.id)}
+                            disabled={shot.isGeneratingImage}
+                            className="w-full px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {shot.isGeneratingImage
+                              ? 'Generating...'
+                              : shot.imageUrl
+                              ? 'Regenerate Image'
+                              : 'Generate Image'}
+                          </button>
+                          <button
+                            onClick={() => handleGenerateClip(shot.id)}
+                            disabled={shot.isGeneratingVideo}
+                            className="w-full px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {shot.isGeneratingVideo
+                              ? 'Creating Clip...'
+                              : 'Create Clip'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="space-y-6">
@@ -609,96 +734,60 @@ Video URL: ${shot.videoUrl || 'No video generated'}
                       No clips generated yet.
                     </p>
                     <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                      Click "Create Clip" on each shot in the Storyboard tab to generate video clips.
+                      Click `Create Clip` on each shot in the Storyboard tab to generate video clips.
                     </p>
                   </div>
                 ) : (
                   <>
-                    {!allClipsGenerated && (
-                      <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                        <p className="text-amber-700 dark:text-amber-400 text-sm">
-                          {shotsWithClips.length} of {shots.length} clips generated. Go to the Storyboard tab to create the remaining clips.
-                        </p>
-                      </div>
-                    )}
+                    <div className="space-y-8">
+                  {shots.map((shot) => {
+                    const clips = shot.clipUrls || [];
+                    if (clips.length === 0) return null;
 
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handlePlayAll}
-                        className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors flex items-center gap-2"
+                    return (
+                      <div
+                        key={shot.id}
+                        className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-                        </svg>
-                        Play All
-                      </button>
-                    </div>
-
-                    {playAllMode && (
-                      <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm">
-                        <div className="relative">
-                          <video
-                            ref={playAllVideoRef}
-                            className="w-full aspect-video bg-zinc-100 dark:bg-zinc-900"
-                            controls
-                            onEnded={handleVideoEnded}
-                          />
+                        <div className="p-4 border-b border-zinc-200 dark:border-zinc-700">
+                          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{shot.title}</h3>
+                          <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 line-clamp-2">{shot.description}</p>
                         </div>
                         <div className="p-4">
-                          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                            {shotsWithClips[currentPlayingIndex]?.title} ({currentPlayingIndex + 1} of {shotsWithClips.length}) - {shotsWithClips[currentPlayingIndex]?.description}
+                          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-3">
+                            Select a clip version to use for this shot:
                           </p>
-                          <div className="mt-3 flex gap-1">
-                            {shotsWithClips.map((_, idx) => (
-                              <div
-                                key={idx}
-                                className={`h-1 flex-1 rounded-full transition-colors ${
-                                  idx < currentPlayingIndex
-                                    ? 'bg-green-500'
-                                    : idx === currentPlayingIndex
-                                    ? 'bg-blue-500'
-                                    : 'bg-zinc-200 dark:bg-zinc-700'
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {clips.map((clip, clipIndex) => (
+                              <button
+                                key={clipIndex}
+                                onClick={() => handleSelectClip(shot.id, clipIndex)}
+                                className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                                  shot.selectedClipIndex === clipIndex
+                                    ? 'border-blue-500 ring-2 ring-blue-500/30'
+                                    : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
                                 }`}
-                              />
+                              >
+                                <video
+                                  src={clip.url}
+                                  className="w-full aspect-video bg-zinc-100 dark:bg-zinc-900 object-cover"
+                                  muted
+                                />
+                                <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
+                                  v{clipIndex + 1}
+                                </div>
+                                {shot.selectedClipIndex === clipIndex && (
+                                  <div className="absolute top-1 right-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded">
+                                    Selected
+                                  </div>
+                                )}
+                              </button>
                             ))}
                           </div>
-                          <button
-                            onClick={() => {
-                              setPlayAllMode(false);
-                              setCurrentPlayingIndex(0);
-                            }}
-                            className="mt-3 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors"
-                          >
-                            Exit Play All
-                          </button>
                         </div>
                       </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {shots.filter(s => s.videoUrl).map((shot, index) => (
-                        <div
-                          key={shot.id}
-                          className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden shadow-sm"
-                        >
-                          <div className="relative">
-                            <video
-                              src={shot.videoUrl}
-                              className="w-full aspect-video bg-zinc-100 dark:bg-zinc-900"
-                              controls
-                              loop
-                            />
-                            <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                              {shot.title}
-                            </div>
-                          </div>
-                          <div className="p-4">
-                            <p className="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
-                              {shot.description}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+                    );
+                  })}
                     </div>
                   </>
                 )}
@@ -749,6 +838,78 @@ Video URL: ${shot.videoUrl || 'No video generated'}
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {showStyleGuideModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-xl">
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Video Style Guide</h3>
+              <button
+                onClick={() => setShowStyleGuideModal(false)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
+                This style guide will be appended to each clip generation prompt to define the visual style of your videos.
+              </p>
+              <textarea
+                value={videoStylePrompt}
+                onChange={(e) => setVideoStylePrompt(e.target.value)}
+                className="w-full h-48 p-4 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter your video style guide..."
+              />
+            </div>
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-700 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setVideoStylePrompt(DEFAULT_VIDEO_STYLE_PROMPT);
+                }}
+                className="px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-700 rounded transition-colors"
+              >
+                Reset to Default
+              </button>
+              <button
+                onClick={() => setShowStyleGuideModal(false)}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVideoLightbox && lightboxVideoUrl && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+          <div className="max-w-5xl w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-white font-semibold">{lightboxVideoTitle}</h3>
+              <button
+                onClick={() => {
+                  setShowVideoLightbox(false);
+                  setLightboxVideoUrl(null);
+                }}
+                className="text-white/70 hover:text-white transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <video
+              src={lightboxVideoUrl}
+              className="w-full aspect-video bg-black rounded-lg"
+              controls
+              autoPlay
+            />
           </div>
         </div>
       )}
