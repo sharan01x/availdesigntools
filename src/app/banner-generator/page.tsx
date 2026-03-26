@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import BannerCanvas, { type BannerConfig, type BackgroundStyle } from '@/components/BannerCanvas';
+import ImagePreview from '@/components/ImagePreview';
 
 async function parseApiResponse(response: Response): Promise<Record<string, unknown>> {
   const rawBody = await response.text();
@@ -37,6 +38,8 @@ export default function BannerGeneratorPage() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   
   const bannerConfig: BannerConfig = {
     backgroundStyle,
@@ -139,11 +142,31 @@ export default function BannerGeneratorPage() {
         throw new Error('Missing image URL from generation response');
       }
       
-      setSupportingImage(data.imageUrl as string);
+      const url = data.imageUrl as string;
+      setGeneratedImageUrl(url);
+      setSupportingImage(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsGeneratingImage(false);
+    }
+  };
+  
+  const handleSaveToGallery = async (processedImageUrl: string, size: number) => {
+    const response = await fetch('/api/images', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: `banner-image-${Date.now()}.png`,
+        url: processedImageUrl,
+        size,
+      }),
+    });
+    
+    const data = await parseApiResponse(response);
+    
+    if (!response.ok || !data.success) {
+      throw new Error((data.error as string) || 'Failed to save image');
     }
   };
   
@@ -428,6 +451,20 @@ export default function BannerGeneratorPage() {
                   Download Banner
                 </button>
               </div>
+              
+              {/* Image adjustment tools for branded supporting image */}
+              {generatedImageUrl && (
+                <div className="mt-6 border-t border-zinc-200 dark:border-zinc-800 pt-6">
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Supporting Image Adjustments</h3>
+                  <ImagePreview
+                    imageUrl={generatedImageUrl}
+                    isLoading={isGeneratingImage}
+                    isBranded={true}
+                    onSaveToGallery={handleSaveToGallery}
+                    aspectRatioClass="aspect-square"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
