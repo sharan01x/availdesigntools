@@ -1,12 +1,17 @@
 import Link from 'next/link';
 const tools = [
   {
+    name: 'Banner Generator',
+    description: 'Create social media banners with custom text, logos, and AI-generated supporting images.',
+    href: '/banner-generator',
+  },
+  {
     name: 'Image Generator',
     description: 'Create polished images by describing use cases or the image you want based on the Avail brand.',
     href: '/image-generator',
   },
   {
-    name: 'Pixel Generator',
+    name: 'Pixel Icon Generator',
     description: 'Create pixel art icons from prompts, upload images, or draw manually with a built-in editor.',
     href: '/pixel-generator',
   },

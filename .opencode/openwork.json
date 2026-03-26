@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "workspace": {
+    "name": "availdesigntools",
+    "createdAt": 1773054513415,
+    "preset": "minimal"
+  },
+  "authorizedRoots": [
+    "/Users/sharan/Documents/GitHub/availdesigntools"
+  ]
+}

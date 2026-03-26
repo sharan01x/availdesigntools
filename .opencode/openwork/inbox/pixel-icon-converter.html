@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Icon Generator</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0a0a;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px;
+    gap: 24px;
+  }
+  h1 { font-size: 24px; font-weight: 600; color: #fff; }
+  .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  label { font-size: 13px; color: #999; }
+  input[type="number"] { width: 56px; padding: 6px 8px; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 13px; text-align: center; }
+  input[type="color"] { width: 32px; height: 32px; border: none; border-radius: 6px; cursor: pointer; background: none; }
+  input[type="range"] { width: 100px; accent-color: #3B82F6; }
+  select { padding: 6px 10px; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 13px; }
+  button { padding: 8px 16px; background: #1a1a1a; border: 1px solid #333; border-radius: 8px; color: #e0e0e0; font-size: 13px; cursor: pointer; transition: background 0.15s; }
+  button:hover { background: #2a2a2a; }
+  button.primary { background: #3B82F6; border-color: #3B82F6; color: #fff; }
+  button.primary:hover { background: #2563EB; }
+  button.danger { border-color: #ef4444; color: #ef4444; }
+  button.danger:hover { background: #1a0a0a; }
+
+  .tab-bar { display: flex; gap: 4px; background: #111; border-radius: 10px; padding: 4px; }
+  .tab-btn { padding: 8px 20px; border: none; border-radius: 7px; background: transparent; color: #888; font-size: 14px; cursor: pointer; transition: all 0.15s; }
+  .tab-btn:hover { color: #ccc; }
+  .tab-btn.active { background: #222; color: #fff; }
+  .tab-panel { display: none; width: 100%; max-width: 640px; }
+  .tab-panel.active { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+
+  .prompt-area { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+  .prompt-row { display: flex; gap: 8px; }
+  .prompt-input { flex: 1; padding: 12px 16px; background: #111; border: 1px solid #333; border-radius: 10px; color: #fff; font-size: 15px; font-family: inherit; outline: none; transition: border-color 0.2s; }
+  .prompt-input:focus { border-color: #3B82F6; }
+  .prompt-input::placeholder { color: #555; }
+  .generate-btn { padding: 12px 24px; font-size: 15px; border-radius: 10px; white-space: nowrap; }
+  .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .mode-toggle { display: flex; gap: 2px; background: #111; border-radius: 8px; padding: 3px; }
+  .mode-toggle-btn { padding: 5px 14px; border: none; border-radius: 6px; background: transparent; color: #666; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .mode-toggle-btn.active { background: #222; color: #fff; }
+  .mode-toggle-btn .badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+  .mode-toggle-btn .badge-free { background: #22c55e22; color: #22c55e; }
+  .mode-toggle-btn .badge-api { background: #3B82F622; color: #3B82F6; }
+
+  .api-row { display: none; gap: 8px; align-items: center; }
+  .api-row.visible { display: flex; }
+  .api-key-input { flex: 1; padding: 8px 12px; background: #111; border: 1px solid #222; border-radius: 8px; color: #fff; font-size: 12px; font-family: monospace; outline: none; }
+  .api-key-input::placeholder { color: #444; }
+  .api-status { font-size: 11px; color: #555; white-space: nowrap; }
+  .api-status.ok { color: #22c55e; }
+
+  .examples-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .example-chip { padding: 5px 12px; background: #151515; border: 1px solid #222; border-radius: 20px; color: #777; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .example-chip:hover { border-color: #3B82F6; color: #bbb; }
+
+  .generating-status { display: none; align-items: center; gap: 8px; color: #888; font-size: 13px; }
+  .generating-status.visible { display: flex; }
+  .spinner { width: 16px; height: 16px; border: 2px solid #333; border-top-color: #3B82F6; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .info-msg { display: none; color: #3B82F6; font-size: 13px; padding: 8px 12px; background: rgba(59,130,246,0.08); border-radius: 8px; text-align: center; }
+  .info-msg.visible { display: block; }
+  .error-msg { display: none; color: #ef4444; font-size: 13px; padding: 8px 12px; background: rgba(239,68,68,0.08); border-radius: 8px; text-align: center; }
+  .error-msg.visible { display: block; }
+
+  /* Browse library overlay */
+  .browse-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; overflow-y: auto; padding: 48px 24px; }
+  .browse-overlay.visible { display: block; }
+  .browse-inner { max-width: 800px; margin: 0 auto; }
+  .browse-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .browse-header h2 { font-size: 20px; color: #fff; }
+  .browse-section-title { font-size: 14px; color: #666; margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .browse-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .browse-item { width: 64px; height: 64px; background: #111; border: 1px solid #222; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; position: relative; }
+  .browse-item:hover { border-color: #3B82F6; transform: scale(1.05); }
+  .browse-item .browse-label { position: absolute; bottom: -18px; font-size: 10px; color: #555; white-space: nowrap; }
+
+  /* Upload */
+  .upload-zone { width: 100%; border: 2px dashed #333; border-radius: 16px; padding: 40px 32px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: #3B82F6; background: rgba(59,130,246,0.05); }
+  .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.4; }
+  .upload-text { font-size: 14px; color: #888; }
+  .upload-hint { font-size: 12px; color: #555; margin-top: 4px; }
+  .source-preview { display: none; flex-direction: column; align-items: center; gap: 10px; }
+  .source-preview.visible { display: flex; }
+  .source-preview img { max-width: 100px; max-height: 100px; border-radius: 8px; background: repeating-conic-gradient(#222 0% 25%, #1a1a1a 0% 50%) 0 0 / 16px 16px; }
+  .source-label { font-size: 12px; color: #555; }
+  .upload-conversion-controls { display: none; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .upload-conversion-controls.visible { display: flex; }
+
+  .editor-area { display: flex; gap: 48px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .grid-container { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  #grid { display: inline-grid; gap: 4px; padding: 16px; background: #111; border-radius: 12px; border: 1px solid #222; user-select: none; }
+  .cell { width: 40px; height: 40px; border-radius: 6px; cursor: pointer; transition: background 0.1s, transform 0.1s; background: #1e1e1e; border: 1px solid #2a2a2a; }
+  .cell:hover { transform: scale(1.08); }
+  .cell.active { border-color: transparent; }
+  .preview-section { display: flex; flex-direction: column; gap: 16px; align-items: center; }
+  .preview-box { background: #fff; border-radius: 12px; padding: 24px; display: flex; align-items: center; justify-content: center; }
+  .preview-box.dark { background: #111; border: 1px solid #222; }
+  .preview-sizes { display: flex; gap: 24px; align-items: flex-end; }
+  .preview-size-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .size-label { font-size: 11px; color: #555; }
+  .export-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .toolbar { display: flex; gap: 6px; }
+  .tool-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding: 0; font-size: 16px; }
+  .tool-btn.selected { background: #3B82F6; border-color: #3B82F6; color: #fff; }
+  .section-divider { width: 100%; max-width: 900px; border: none; border-top: 1px solid #1a1a1a; }
+  .hidden-canvas { display: none; }
+  .shadow-dir-grid { display: grid; grid-template-columns: repeat(3, 24px); grid-template-rows: repeat(3, 24px); gap: 2px; }
+  .shadow-dir-btn { width: 24px; height: 24px; padding: 0; font-size: 10px; display: flex; align-items: center; justify-content: center; border-radius: 4px; }
+  .shadow-dir-btn.selected { background: #3B82F6; border-color: #3B82F6; color: #fff; }
+  .shadow-dir-btn.center { background: #333; cursor: default; }
+</style>
+</head>
+<body>
+
+<h1>Pixel Icon Generator</h1>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="prompt">Prompt</button>
+  <button class="tab-btn" data-tab="upload">Upload Image</button>
+</div>
+
+<!-- PROMPT TAB -->
+<div class="tab-panel active" id="tab-prompt">
+  <div class="prompt-area">
+    <div class="prompt-row">
+      <input type="text" class="prompt-input" id="promptInput" placeholder="Type an icon name — e.g. &quot;play&quot;, &quot;heart&quot;, &quot;A&quot;">
+      <button class="primary generate-btn" id="generateBtn" onclick="generateFromPrompt()">Generate</button>
+    </div>
+    <div style="display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;">
+      <div class="mode-toggle">
+        <button class="mode-toggle-btn active" data-mode="library" onclick="setMode('library')">Library <span class="badge badge-free">FREE</span></button>
+        <button class="mode-toggle-btn" data-mode="ai" onclick="setMode('ai')">AI <span class="badge badge-api">API</span></button>
+      </div>
+      <button style="font-size:12px; padding:5px 12px;" onclick="openBrowse()">Browse all icons</button>
+    </div>
+    <div class="api-row" id="apiRow">
+      <input type="password" class="api-key-input" id="apiKeyInput" placeholder="Anthropic API key (sk-ant-...)">
+      <span class="api-status" id="apiStatus">No key</span>
+    </div>
+    <div class="examples-row" id="examplesRow">
+      <span style="font-size:11px;color:#444;">Try:</span>
+      <button class="example-chip" onclick="useExample(this)">play</button>
+      <button class="example-chip" onclick="useExample(this)">heart</button>
+      <button class="example-chip" onclick="useExample(this)">star</button>
+      <button class="example-chip" onclick="useExample(this)">lightning</button>
+      <button class="example-chip" onclick="useExample(this)">check</button>
+      <button class="example-chip" onclick="useExample(this)">lock</button>
+      <button class="example-chip" onclick="useExample(this)">arrow right</button>
+      <button class="example-chip" onclick="useExample(this)">B</button>
+      <button class="example-chip" onclick="useExample(this)">7</button>
+      <button class="example-chip" onclick="useExample(this)">home</button>
+      <button class="example-chip" onclick="useExample(this)">gear</button>
+      <button class="example-chip" onclick="useExample(this)">wifi</button>
+    </div>
+  </div>
+  <div class="generating-status" id="genStatus"><div class="spinner"></div><span id="genStatusText">Generating...</span></div>
+  <div class="info-msg" id="infoMsg"></div>
+  <div class="error-msg" id="errorMsg"></div>
+  <div class="controls">
+    <div class="control-group">
+      <label>Grid</label>
+      <input type="number" id="promptCols" value="9" min="3" max="32">
+      <span style="color:#555">x</span>
+      <input type="number" id="promptRows" value="9" min="3" max="32">
+    </div>
+  </div>
+</div>
+
+<!-- UPLOAD TAB -->
+<div class="tab-panel" id="tab-upload">
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept="image/*,.svg">
+    <div class="upload-icon">+</div>
+    <div class="upload-text">Drop an icon here or click to upload</div>
+    <div class="upload-hint">PNG, SVG, JPG</div>
+  </div>
+  <div class="source-preview" id="sourcePreview">
+    <img id="sourceImg" alt="Source icon">
+    <span class="source-label">Source</span>
+    <button onclick="document.getElementById('fileInput').click()">Change Image</button>
+  </div>
+  <div class="upload-conversion-controls" id="uploadConversionControls">
+    <div class="control-group"><label>Grid</label><input type="number" id="uploadCols" value="9" min="3" max="32"><span style="color:#555">x</span><input type="number" id="uploadRows" value="9" min="3" max="32"></div>
+    <div class="control-group"><label>Threshold</label><input type="range" id="threshold" min="1" max="99" value="50"><span id="thresholdVal" style="font-size:12px;color:#666;width:30px">50%</span></div>
+    <div class="control-group"><label>Mode</label><select id="detectMode"><option value="alpha">Alpha</option><option value="luminance">Luminance</option><option value="dark">Dark pixels</option></select></div>
+    <div class="control-group"><label>Invert</label><input type="checkbox" id="invertGrid" onchange="convertImage()"></div>
+    <button class="primary" onclick="convertImage()">Re-convert</button>
+  </div>
+</div>
+
+<!-- Browse overlay -->
+<div class="browse-overlay" id="browseOverlay">
+  <div class="browse-inner">
+    <div class="browse-header"><h2>Icon Library</h2><button onclick="closeBrowse()">Close</button></div>
+    <div id="browseContent"></div>
+  </div>
+</div>
+
+<hr class="section-divider" id="divider" style="display:none">
+<div class="controls" id="styleControls" style="display:none">
+  <div class="control-group"><label>Icon</label><input type="color" id="fillColor" value="#3B82F6"></div>
+  <div class="control-group"><label>Shadow</label><input type="color" id="shadowColor" value="#c5cdd8"></div>
+  <div class="control-group"><label>Radius</label><input type="range" id="radius" min="0" max="50" value="20"><span id="radiusVal" style="font-size:12px;color:#666;width:30px">20%</span></div>
+  <div class="control-group"><label>Gap</label><input type="range" id="gap" min="0" max="40" value="12"><span id="gapVal" style="font-size:12px;color:#666;width:30px">12%</span></div>
+</div>
+<div class="controls" id="shadowControls" style="display:none">
+  <div class="control-group"><label>Shadow offset</label><div class="shadow-dir-grid" id="shadowDirGrid"></div></div>
+  <div class="control-group"><label>Shadow</label><input type="checkbox" id="showShadow" checked onchange="fullRender()"></div>
+  <div class="toolbar">
+    <button class="tool-btn selected" id="tool-paint" title="Paint (B)">&#x1f58c;</button>
+    <button class="tool-btn" id="tool-erase" title="Erase (E)">&#x2715;</button>
+  </div>
+  <button class="danger" onclick="clearGrid()">Clear</button>
+</div>
+
+<div class="editor-area" id="editorArea" style="display:none">
+  <div class="grid-container"><div id="grid"></div></div>
+  <div class="preview-section">
+    <div class="preview-sizes">
+      <div class="preview-size-item"><span class="size-label">Light BG</span><div class="preview-box" id="preview-light"></div></div>
+      <div class="preview-size-item"><span class="size-label">Dark BG</span><div class="preview-box dark" id="preview-dark"></div></div>
+    </div>
+    <div class="preview-sizes">
+      <div class="preview-size-item"><span class="size-label">128px</span><div class="preview-box" id="preview-128"></div></div>
+      <div class="preview-size-item"><span class="size-label">64px</span><div class="preview-box" id="preview-64"></div></div>
+      <div class="preview-size-item"><span class="size-label">32px</span><div class="preview-box" id="preview-32"></div></div>
+    </div>
+    <div class="export-row">
+      <button class="primary" onclick="exportSVG()">Export SVG</button>
+      <button class="primary" onclick="exportPNG(512)">PNG 512</button>
+      <button class="primary" onclick="exportPNG(1024)">PNG 1024</button>
+      <button onclick="copyJSON()">Copy JSON</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="sampleCanvas" class="hidden-canvas"></canvas>
+
+<script>
+// ═══════════════════════════════════════════
+// ICON LIBRARY — 5x7 pixel font + symbols
+// ═══════════════════════════════════════════
+const LETTERS = {
+  A:['01110','10001','10001','11111','10001','10001','10001'],
+  B:['11110','10001','10001','11110','10001','10001','11110'],
+  C:['01110','10001','10000','10000','10000','10001','01110'],
+  D:['11100','10010','10001','10001','10001','10010','11100'],
+  E:['11111','10000','10000','11110','10000','10000','11111'],
+  F:['11111','10000','10000','11110','10000','10000','10000'],
+  G:['01110','10001','10000','10111','10001','10001','01110'],
+  H:['10001','10001','10001','11111','10001','10001','10001'],
+  I:['11111','00100','00100','00100','00100','00100','11111'],
+  J:['00111','00010','00010','00010','00010','10010','01100'],
+  K:['10001','10010','10100','11000','10100','10010','10001'],
+  L:['10000','10000','10000','10000','10000','10000','11111'],
+  M:['10001','11011','10101','10101','10001','10001','10001'],
+  N:['10001','11001','10101','10011','10001','10001','10001'],
+  O:['01110','10001','10001','10001','10001','10001','01110'],
+  P:['11110','10001','10001','11110','10000','10000','10000'],
+  Q:['01110','10001','10001','10001','10101','10010','01101'],
+  R:['11110','10001','10001','11110','10100','10010','10001'],
+  S:['01111','10000','10000','01110','00001','00001','11110'],
+  T:['11111','00100','00100','00100','00100','00100','00100'],
+  U:['10001','10001','10001','10001','10001','10001','01110'],
+  V:['10001','10001','10001','10001','01010','01010','00100'],
+  W:['10001','10001','10001','10101','10101','11011','10001'],
+  X:['10001','10001','01010','00100','01010','10001','10001'],
+  Y:['10001','10001','01010','00100','00100','00100','00100'],
+  Z:['11111','00001','00010','00100','01000','10000','11111'],
+};
+const NUMBERS = {
+  '0':['01110','10001','10011','10101','11001','10001','01110'],
+  '1':['00100','01100','00100','00100','00100','00100','01110'],
+  '2':['01110','10001','00001','00110','01000','10000','11111'],
+  '3':['01110','10001','00001','00110','00001','10001','01110'],
+  '4':['00010','00110','01010','10010','11111','00010','00010'],
+  '5':['11111','10000','11110','00001','00001','10001','01110'],
+  '6':['01110','10001','10000','11110','10001','10001','01110'],
+  '7':['11111','00001','00010','00100','01000','01000','01000'],
+  '8':['01110','10001','10001','01110','10001','10001','01110'],
+  '9':['01110','10001','10001','01111','00001','10001','01110'],
+};
+
+// Each symbol: { data: string[] (rows of 0/1), tags: string[] }
+const SYMBOLS = {
+  play:       { data:['010000','011000','011100','011110','011100','011000','010000'], tags:['play','video','media','triangle','right','start'] },
+  pause:      { data:['110011','110011','110011','110011','110011','110011','110011'], tags:['pause','media','stop'] },
+  heart:      { data:['0100010','1110111','1111111','1111111','0111110','0011100','0001000'], tags:['heart','love','like','favorite','fav'] },
+  star:       { data:['0001000','0001000','1111111','0111110','0010100','0101010','1000001'], tags:['star','favorite','rating','fav'] },
+  check:      { data:['0000000','0000010','0000100','0001000','1010000','0100000','0000000'], tags:['check','checkmark','tick','done','complete','yes','correct','approve'] },
+  plus:       { data:['0001000','0001000','0001000','1111111','0001000','0001000','0001000'], tags:['plus','add','new','create','positive'] },
+  close:      { data:['1000001','0100010','0010100','0001000','0010100','0100010','1000001'], tags:['close','x','cancel','delete','remove','cross','multiply'] },
+  'arrow-r':  { data:['0001000','0000100','0000010','1111111','0000010','0000100','0001000'], tags:['arrow right','right','forward','next','east'] },
+  'arrow-l':  { data:['0001000','0010000','0100000','1111111','0100000','0010000','0001000'], tags:['arrow left','left','back','previous','west'] },
+  'arrow-u':  { data:['0001000','0011100','0101010','1001001','0001000','0001000','0001000'], tags:['arrow up','up','north'] },
+  'arrow-d':  { data:['0001000','0001000','0001000','1001001','0101010','0011100','0001000'], tags:['arrow down','down','south','download'] },
+  lightning:  { data:['0001100','0011000','0110000','1111100','0001100','0011000','0100000'], tags:['lightning','bolt','flash','power','energy','electric','thunder','zap'] },
+  lock:       { data:['0011100','0100010','0100010','1111111','1101011','1101011','1111111'], tags:['lock','secure','locked','security','password','private'] },
+  unlock:     { data:['0011100','0100010','0000010','1111111','1101011','1101011','1111111'], tags:['unlock','unlocked','open'] },
+  home:       { data:['0001000','0011100','0111110','1111111','0110110','0110110','0111110'], tags:['home','house','building','main'] },
+  search:     { data:['0111000','1000100','1000100','1000100','0111000','0001100','0000010'], tags:['search','magnify','find','zoom','lookup','lens'] },
+  gear:       { data:['0101010','0111110','1110111','0100010','1110111','0111110','0101010'], tags:['gear','settings','config','preferences','cog','options'] },
+  wifi:       { data:['0111110','1000001','0011100','0100010','0001000','0000000','0001000'], tags:['wifi','wireless','signal','network','internet','connection'] },
+  download:   { data:['0001000','0001000','0001000','0101010','0010100','0001000','1111111'], tags:['download','save','export'] },
+  upload:     { data:['0001000','0010100','0101010','0001000','0001000','0001000','1111111'], tags:['upload','import','share'] },
+  eye:        { data:['0000000','0011100','0100010','1001001','0100010','0011100','0000000'], tags:['eye','view','visible','show','watch','see','preview'] },
+  mail:       { data:['0000000','1111111','1100011','1010101','1001001','1000001','1111111'], tags:['mail','email','envelope','message','inbox','letter'] },
+  bell:       { data:['0001000','0011100','0011100','0100010','0100010','1111111','0001000'], tags:['bell','notification','alert','alarm','ring'] },
+  shield:     { data:['1111111','1000001','1000001','1000001','0100010','0010100','0001000'], tags:['shield','security','protect','safe','guard','defense'] },
+  flag:       { data:['1100000','1111100','1111100','1111100','1100000','1000000','1000000'], tags:['flag','report','bookmark','mark'] },
+  cursor:     { data:['1000000','1100000','1010000','1001000','1111100','0001100','0000100'], tags:['cursor','pointer','mouse','click','select'] },
+  menu:       { data:['0000000','1111111','0000000','1111111','0000000','1111111','0000000'], tags:['menu','hamburger','bars','navigation','nav','list'] },
+  refresh:    { data:['0011110','0100001','0100000','0000000','0000010','1000010','0111100'], tags:['refresh','reload','sync','rotate','update'] },
+  power:      { data:['0001000','0001000','0100010','1000001','1000001','0100010','0011100'], tags:['power','on','off','shutdown','switch','toggle'] },
+  sun:        { data:['0100010','0011100','1111111','0111110','1111111','0011100','0100010'], tags:['sun','light','bright','day','weather'] },
+  moon:       { data:['0011100','0100000','1000000','1000000','1000000','0100000','0011100'], tags:['moon','dark','night','sleep','crescent'] },
+  cloud:      { data:['0000000','0011100','0100010','1100011','1111111','1111111','0000000'], tags:['cloud','weather','storage','sky','upload'] },
+  link:       { data:['0011100','0100010','0100000','0011100','0000010','0100010','0011100'], tags:['link','chain','url','connect','href','anchor'] },
+  key:        { data:['0011000','0100100','0011000','0001000','0001100','0001000','0001100'], tags:['key','password','access','auth','token'] },
+  pin:        { data:['0011100','0100010','0100010','0100010','0011100','0001000','0001000'], tags:['pin','location','map','place','marker','gps'] },
+  user:       { data:['0011100','0100010','0100010','0011100','0000000','0111110','1000001'], tags:['user','person','profile','account','avatar','people'] },
+  folder:     { data:['1110000','1001111','1000001','1000001','1000001','1000001','1111111'], tags:['folder','directory','files','dir'] },
+  file:       { data:['1111100','1000110','1000011','1000001','1000001','1000001','1111111'], tags:['file','document','page','doc','paper'] },
+  trash:      { data:['0111110','1111111','0100010','0101010','0101010','0100010','0111110'], tags:['trash','delete','bin','garbage','remove','waste'] },
+  code:       { data:['0010010','0100100','1001000','0100100','0010010','0000000','0000000'], tags:['code','brackets','dev','programming','terminal','script'] },
+  music:      { data:['0000110','0000101','0000100','0000100','0110100','1001100','0110000'], tags:['music','note','audio','sound','song'] },
+  camera:     { data:['0100100','1111111','1000001','1011101','1010101','1011101','1111111'], tags:['camera','photo','picture','image','snapshot'] },
+  bookmark:   { data:['1111111','1000001','1000001','1000001','1010101','1101011','1000001'], tags:['bookmark','save','tag','label'] },
+  phone:      { data:['0111110','0100010','0100010','0100010','0100010','0111110','0111110'], tags:['phone','mobile','call','device','smartphone'] },
+  database:   { data:['0111110','1111111','0111110','0100010','0111110','1111111','0111110'], tags:['database','db','storage','data','server','cylinder'] },
+  stop:       { data:['0000000','0111110','0111110','0111110','0111110','0111110','0000000'], tags:['stop','square','halt','end'] },
+};
+
+// ═══════════════════════════════════════════
+// MATCH ENGINE
+// ═══════════════════════════════════════════
+function matchIcon(query) {
+  const q = query.trim();
+  if (!q) return null;
+
+  // Single character → letter or number
+  const upper = q.toUpperCase();
+  if (q.length === 1 && LETTERS[upper]) return { name: upper, data: LETTERS[upper] };
+  if (q.length === 1 && NUMBERS[q]) return { name: q, data: NUMBERS[q] };
+
+  // "letter X" or "number X" patterns
+  const letterMatch = q.match(/^(?:letter|char|character)\s+([a-zA-Z])$/i);
+  if (letterMatch) { const ch = letterMatch[1].toUpperCase(); if (LETTERS[ch]) return { name: ch, data: LETTERS[ch] }; }
+  const numMatch = q.match(/^(?:number|digit|num)\s+(\d)$/i);
+  if (numMatch) { const d = numMatch[1]; if (NUMBERS[d]) return { name: d, data: NUMBERS[d] }; }
+
+  // Keyword search against symbols
+  const words = q.toLowerCase().split(/[\s,\/\-_]+/).filter(Boolean);
+  let bestKey = null, bestScore = 0;
+
+  for (const [key, sym] of Object.entries(SYMBOLS)) {
+    let score = 0;
+    // Exact key match
+    if (key === q.toLowerCase().replace(/\s+/g, '-')) score += 10;
+
+    for (const word of words) {
+      // Exact tag match
+      if (sym.tags.includes(word)) score += 3;
+      // Tag contains word
+      else if (sym.tags.some(t => t.includes(word))) score += 2;
+      // Word contains tag
+      else if (sym.tags.some(t => word.includes(t))) score += 1;
+    }
+    // Multi-word tag match (e.g. "arrow right")
+    const fullQ = q.toLowerCase();
+    for (const tag of sym.tags) {
+      if (tag.includes(' ') && fullQ.includes(tag)) score += 5;
+    }
+
+    if (score > bestScore) { bestScore = score; bestKey = key; }
+  }
+
+  if (bestKey && bestScore >= 2) return { name: bestKey, data: SYMBOLS[bestKey].data };
+  return null;
+}
+
+function placeIconInGrid(iconData, targetCols, targetRows) {
+  const iH = iconData.length;
+  const iW = iconData[0].length;
+  const offR = Math.floor((targetRows - iH) / 2);
+  const offC = Math.floor((targetCols - iW) / 2);
+
+  const result = Array.from({ length: targetRows }, () => Array(targetCols).fill(false));
+  for (let r = 0; r < iH; r++) {
+    for (let c = 0; c < iW; c++) {
+      const gr = r + offR;
+      const gc = c + offC;
+      if (gr >= 0 && gr < targetRows && gc >= 0 && gc < targetCols) {
+        result[gr][gc] = iconData[r][c] === '1';
+      }
+    }
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let grid = [];
+let cols = 9, rows = 9;
+let painting = false, paintValue = true, currentTool = 'paint';
+let loadedImage = null;
+let shadowOffsetX = 1, shadowOffsetY = 1;
+let promptMode = 'library'; // 'library' or 'ai'
+
+const gridEl = document.getElementById('grid');
+const fillColorInput = document.getElementById('fillColor');
+const shadowColorInput = document.getElementById('shadowColor');
+const radiusInput = document.getElementById('radius');
+const gapInput = document.getElementById('gap');
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  };
+});
+
+// ═══════════════════════════════════════════
+// MODE TOGGLE (Library / AI)
+// ═══════════════════════════════════════════
+function setMode(mode) {
+  promptMode = mode;
+  document.querySelectorAll('.mode-toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.getElementById('apiRow').classList.toggle('visible', mode === 'ai');
+}
+
+// ═══════════════════════════════════════════
+// SHADOW DIRECTION PICKER
+// ═══════════════════════════════════════════
+const dirGrid = document.getElementById('shadowDirGrid');
+[{dx:-1,dy:-1,l:'↖'},{dx:0,dy:-1,l:'↑'},{dx:1,dy:-1,l:'↗'},
+ {dx:-1,dy:0,l:'←'},{dx:0,dy:0,l:'·'},{dx:1,dy:0,l:'→'},
+ {dx:-1,dy:1,l:'↙'},{dx:0,dy:1,l:'↓'},{dx:1,dy:1,l:'↘'}]
+.forEach(({dx,dy,l}) => {
+  const btn = document.createElement('button');
+  btn.className = 'shadow-dir-btn' + (dx===0&&dy===0?' center':'') + (dx===shadowOffsetX&&dy===shadowOffsetY?' selected':'');
+  btn.textContent = l;
+  if (dx!==0||dy!==0) btn.onclick = () => {
+    shadowOffsetX=dx; shadowOffsetY=dy;
+    dirGrid.querySelectorAll('.shadow-dir-btn').forEach(b=>b.classList.remove('selected'));
+    btn.classList.add('selected'); fullRender();
+  };
+  dirGrid.appendChild(btn);
+});
+
+// ═══════════════════════════════════════════
+// API KEY
+// ═══════════════════════════════════════════
+const apiKeyInput = document.getElementById('apiKeyInput');
+const apiStatus = document.getElementById('apiStatus');
+apiKeyInput.value = localStorage.getItem('anthropic_api_key') || '';
+updateApiStatus();
+apiKeyInput.addEventListener('input', () => { localStorage.setItem('anthropic_api_key', apiKeyInput.value); updateApiStatus(); });
+function updateApiStatus() {
+  const k = apiKeyInput.value.trim();
+  if (k) { apiStatus.textContent = '✓ Key saved'; apiStatus.className = 'api-status ok'; }
+  else { apiStatus.textContent = 'No key'; apiStatus.className = 'api-status'; }
+}
+
+// ═══════════════════════════════════════════
+// PROMPT GENERATION
+// ═══════════════════════════════════════════
+const promptInput = document.getElementById('promptInput');
+promptInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') generateFromPrompt(); });
+function useExample(el) { promptInput.value = el.textContent; generateFromPrompt(); }
+
+async function generateFromPrompt() {
+  const prompt = promptInput.value.trim();
+  if (!prompt) return;
+
+  cols = parseInt(document.getElementById('promptCols').value);
+  rows = parseInt(document.getElementById('promptRows').value);
+  hideMessages();
+
+  if (promptMode === 'library') {
+    // LOCAL LIBRARY
+    const match = matchIcon(prompt);
+    if (match) {
+      grid = placeIconInGrid(match.data, cols, rows);
+      showInfo('Matched: ' + match.name);
+      showEditor(); fullRender();
+    } else {
+      showError('No match found for "' + prompt + '". Try Browse to see all available icons.');
+    }
+  } else {
+    // AI MODE
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) { showError('Add your Anthropic API key to use AI mode.'); return; }
+
+    const genBtn = document.getElementById('generateBtn');
+    const genStatus = document.getElementById('genStatus');
+    genBtn.disabled = true;
+    genStatus.classList.add('visible');
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: `You are a pixel icon designer. Given a grid size (rows × cols) and an icon description, return a 2D JSON array of booleans. true = filled, false = empty. Center the icon. Keep shapes clean and recognizable at small sizes. Return ONLY valid JSON, no markdown or explanation. Just: [[true,false,...],...]`,
+          messages: [{ role: 'user', content: `Grid: ${rows} rows × ${cols} cols.\nIcon: ${prompt}` }]
+        })
+      });
+      if (!response.ok) { const err = await response.json().catch(()=>({})); throw new Error(err.error?.message || `API error ${response.status}`); }
+      const data = await response.json();
+      const parsed = JSON.parse(data.content[0].text.trim());
+      const newGrid = Array.isArray(parsed[0]) ? parsed : parsed.grid;
+      if (!newGrid || !Array.isArray(newGrid[0])) throw new Error('Invalid grid format');
+      rows = newGrid.length; cols = newGrid[0].length;
+      grid = newGrid.map(row => row.map(v => !!v));
+      showEditor(); fullRender();
+    } catch (e) { showError(e.message); }
+    finally { genBtn.disabled = false; genStatus.classList.remove('visible'); }
+  }
+}
+
+function showInfo(msg) { const el=document.getElementById('infoMsg'); el.textContent=msg; el.classList.add('visible'); }
+function showError(msg) { const el=document.getElementById('errorMsg'); el.textContent=msg; el.classList.add('visible'); }
+function hideMessages() { document.getElementById('infoMsg').classList.remove('visible'); document.getElementById('errorMsg').classList.remove('visible'); }
+
+function showEditor() {
+  document.getElementById('divider').style.display = 'block';
+  document.getElementById('styleControls').style.display = 'flex';
+  document.getElementById('shadowControls').style.display = 'flex';
+  document.getElementById('editorArea').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════
+// BROWSE LIBRARY
+// ═══════════════════════════════════════════
+function openBrowse() {
+  const container = document.getElementById('browseContent');
+  container.innerHTML = '';
+
+  const sections = [
+    { title: 'Symbols', items: Object.entries(SYMBOLS).map(([k,v]) => ({ name: k, data: v.data })) },
+    { title: 'Letters', items: Object.entries(LETTERS).map(([k,v]) => ({ name: k, data: v })) },
+    { title: 'Numbers', items: Object.entries(NUMBERS).map(([k,v]) => ({ name: k, data: v })) },
+  ];
+
+  for (const sec of sections) {
+    const title = document.createElement('div');
+    title.className = 'browse-section-title';
+    title.textContent = sec.title;
+    container.appendChild(title);
+
+    const grid = document.createElement('div');
+    grid.className = 'browse-grid';
+    container.appendChild(grid);
+
+    for (const item of sec.items) {
+      const el = document.createElement('div');
+      el.className = 'browse-item';
+      el.title = item.name;
+      // Render mini SVG preview
+      el.innerHTML = generateMiniSVG(item.data, 40);
+      const label = document.createElement('div');
+      label.className = 'browse-label';
+      label.textContent = item.name;
+      el.style.marginBottom = '20px';
+      el.appendChild(label);
+      el.onclick = () => {
+        cols = parseInt(document.getElementById('promptCols').value);
+        rows = parseInt(document.getElementById('promptRows').value);
+        grid = placeIconInGrid(item.data, cols, rows);
+        promptInput.value = item.name;
+        closeBrowse();
+        showEditor(); fullRender();
+        showInfo('Loaded: ' + item.name);
+      };
+      grid.appendChild(el);
+    }
+  }
+
+  document.getElementById('browseOverlay').classList.add('visible');
+}
+
+function closeBrowse() { document.getElementById('browseOverlay').classList.remove('visible'); }
+
+function generateMiniSVG(data, size) {
+  const iH = data.length, iW = data[0].length;
+  const maxD = Math.max(iW, iH);
+  const cell = size / maxD;
+  const gap = cell * 0.12;
+  const rect = cell - gap;
+  const rad = rect * 0.2;
+  const oX = (size - iW * cell) / 2;
+  const oY = (size - iH * cell) / 2;
+  let rects = '';
+  for (let r = 0; r < iH; r++)
+    for (let c = 0; c < iW; c++)
+      if (data[r][c] === '1') {
+        const x = oX + c * cell + gap/2;
+        const y = oY + r * cell + gap/2;
+        rects += `<rect x="${x}" y="${y}" width="${rect}" height="${rect}" rx="${rad}" fill="#3B82F6"/>`;
+      }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+}
+
+// ═══════════════════════════════════════════
+// UPLOAD
+// ═══════════════════════════════════════════
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+uploadZone.addEventListener('dragover', (e)=>{e.preventDefault();uploadZone.classList.add('dragover');});
+uploadZone.addEventListener('dragleave', ()=>{uploadZone.classList.remove('dragover');});
+uploadZone.addEventListener('drop', (e)=>{e.preventDefault();uploadZone.classList.remove('dragover');if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0]);});
+fileInput.addEventListener('change', (e)=>{if(e.target.files.length)handleFile(e.target.files[0]);});
+
+function handleFile(file) {
+  if (!file.type.startsWith('image/') && !file.name.endsWith('.svg')) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      loadedImage = img;
+      document.getElementById('sourceImg').src = e.target.result;
+      document.getElementById('sourcePreview').classList.add('visible');
+      uploadZone.style.display = 'none';
+      document.getElementById('uploadConversionControls').classList.add('visible');
+      autoDetectMode(img); convertImage(); showEditor();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function autoDetectMode(img) {
+  const canvas = document.getElementById('sampleCanvas');
+  const sz=64; canvas.width=sz; canvas.height=sz;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  ctx.clearRect(0,0,sz,sz); ctx.drawImage(img,0,0,sz,sz);
+  const data=ctx.getImageData(0,0,sz,sz).data;
+  let hasTrans=false,totalA=0,totalL=0; const px=sz*sz;
+  for(let i=0;i<data.length;i+=4){const a=data[i+3];totalA+=a;if(a<240)hasTrans=true;totalL+=data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114;}
+  const m=document.getElementById('detectMode');
+  if(hasTrans&&totalA/px<200)m.value='alpha'; else m.value=totalL/px>180?'dark':'luminance';
+}
+
+function convertImage() {
+  if(!loadedImage)return;
+  cols=parseInt(document.getElementById('uploadCols').value);
+  rows=parseInt(document.getElementById('uploadRows').value);
+  const threshold=parseInt(document.getElementById('threshold').value)/100;
+  const mode=document.getElementById('detectMode').value;
+  const invert=document.getElementById('invertGrid').checked;
+  document.getElementById('thresholdVal').textContent=document.getElementById('threshold').value+'%';
+  const canvas=document.getElementById('sampleCanvas');
+  const sW=cols*8,sH=rows*8; canvas.width=sW;canvas.height=sH;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  if(mode==='alpha')ctx.clearRect(0,0,sW,sH);else{ctx.fillStyle='#fff';ctx.fillRect(0,0,sW,sH);}
+  const iA=loadedImage.width/loadedImage.height,cA=sW/sH;
+  let dW,dH,dX,dY;
+  if(iA>cA){dW=sW;dH=sW/iA;dX=0;dY=(sH-dH)/2;}else{dH=sH;dW=sH*iA;dX=(sW-dW)/2;dY=0;}
+  ctx.drawImage(loadedImage,dX,dY,dW,dH);
+  const imgData=ctx.getImageData(0,0,sW,sH);
+  grid=[];const cellW=sW/cols,cellH=sH/rows;
+  for(let r=0;r<rows;r++){const row=[];for(let c=0;c<cols;c++){
+    const sx=Math.floor(c*cellW),sy=Math.floor(r*cellH),ex=Math.floor((c+1)*cellW),ey=Math.floor((r+1)*cellH);
+    let sum=0,cnt=0;
+    for(let y=sy;y<ey;y++)for(let x=sx;x<ex;x++){const i=(y*sW+x)*4;const R=imgData.data[i],G=imgData.data[i+1],B=imgData.data[i+2],A=imgData.data[i+3];
+      if(mode==='alpha')sum+=A/255;else{const l=(R*0.299+G*0.587+B*0.114)/255;sum+=mode==='luminance'?1-l:(l<0.5?1:0);}cnt++;}
+    let active=(sum/cnt)>=threshold;if(invert)active=!active;row.push(active);}grid.push(row);}
+  fullRender();
+}
+
+// ═══════════════════════════════════════════
+// SHADOW / GRID / RENDER
+// ═══════════════════════════════════════════
+function getShadowMap() {
+  const s=Array.from({length:rows},()=>Array(cols).fill(false));
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(grid[r][c]){const sr=r+shadowOffsetY,sc=c+shadowOffsetX;if(sr>=0&&sr<rows&&sc>=0&&sc<cols)s[sr][sc]=true;}
+  return s;
+}
+
+document.getElementById('tool-paint').onclick=()=>setTool('paint');
+document.getElementById('tool-erase').onclick=()=>setTool('erase');
+function setTool(t){currentTool=t;document.getElementById('tool-paint').classList.toggle('selected',t==='paint');document.getElementById('tool-erase').classList.toggle('selected',t==='erase');}
+function clearGrid(){grid=grid.map(r=>r.map(()=>false));fullRender();}
+
+function renderGrid() {
+  const showShadow=document.getElementById('showShadow').checked;
+  const shadow=showShadow?getShadowMap():null;
+  const fc=fillColorInput.value, sc=shadowColorInput.value;
+  gridEl.style.gridTemplateColumns=`repeat(${cols}, 40px)`;
+  gridEl.innerHTML='';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const cell=document.createElement('div');
+    const isA=grid[r][c], isS=showShadow&&shadow[r][c]&&!isA;
+    cell.className='cell'+(isA||isS?' active':'');
+    if(isA)cell.style.background=fc;else if(isS)cell.style.background=sc;
+    cell.addEventListener('mousedown',(e)=>{e.preventDefault();painting=true;paintValue=currentTool==='erase'?false:!grid[r][c];grid[r][c]=paintValue;fullRender();});
+    cell.addEventListener('mouseenter',()=>{if(painting){grid[r][c]=paintValue;fullRender();}});
+    gridEl.appendChild(cell);
+  }
+}
+document.addEventListener('mouseup',()=>{painting=false;});
+
+function generateSVG(size) {
+  const fc=fillColorInput.value,sc=shadowColorInput.value;
+  const rP=parseInt(radiusInput.value)/100,gP=parseInt(gapInput.value)/100;
+  const showS=document.getElementById('showShadow').checked;
+  const shadow=showS?getShadowMap():null;
+  let minR=rows,maxR=-1,minC=cols,maxC=-1;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const v=grid[r][c]||(showS&&shadow[r][c]);if(v){minR=Math.min(minR,r);maxR=Math.max(maxR,r);minC=Math.min(minC,c);maxC=Math.max(maxC,c);}}
+  if(maxR<0){minR=0;maxR=rows-1;minC=0;maxC=cols-1;}
+  const vC=maxC-minC+1,vR=maxR-minR+1,maxD=Math.max(vC,vR);
+  const padC=Math.floor((maxD-vC)/2),padR=Math.floor((maxD-vR)/2);
+  const cs=size/maxD,g=cs*gP,rs=cs-g,rad=rs*rP;
+  let rects='';
+  if(showS)for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(shadow[r][c]&&!grid[r][c]){const x=(c-minC+padC)*cs+g/2,y=(r-minR+padR)*cs+g/2;rects+=`  <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${rs.toFixed(2)}" height="${rs.toFixed(2)}" rx="${rad.toFixed(2)}" fill="${sc}"/>\n`;}
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(grid[r][c]){const x=(c-minC+padC)*cs+g/2,y=(r-minR+padR)*cs+g/2;rects+=`  <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${rs.toFixed(2)}" height="${rs.toFixed(2)}" rx="${rad.toFixed(2)}" fill="${fc}"/>\n`;}
+  const s=cs*maxD;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${s.toFixed(2)}" height="${s.toFixed(2)}" viewBox="0 0 ${s.toFixed(2)} ${s.toFixed(2)}">\n${rects}</svg>`;
+}
+
+function renderPreview() {
+  document.getElementById('radiusVal').textContent=radiusInput.value+'%';
+  document.getElementById('gapVal').textContent=gapInput.value+'%';
+  const svg200=generateSVG(200);
+  document.getElementById('preview-light').innerHTML=svg200;
+  document.getElementById('preview-dark').innerHTML=svg200;
+  document.getElementById('preview-128').innerHTML=generateSVG(128);
+  document.getElementById('preview-64').innerHTML=generateSVG(64);
+  document.getElementById('preview-32').innerHTML=generateSVG(32);
+}
+
+function fullRender(){renderGrid();renderPreview();}
+
+// ═══════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════
+function exportSVG(){download(generateSVG(512),'pixel-icon.svg','image/svg+xml');}
+function exportPNG(size){
+  const svg=generateSVG(size);const blob=new Blob([svg],{type:'image/svg+xml'});const url=URL.createObjectURL(blob);
+  const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=size;c.height=size;
+    c.getContext('2d').drawImage(img,0,0,size,size);c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`pixel-icon-${size}.png`;a.click();URL.revokeObjectURL(a.href);});URL.revokeObjectURL(url);};img.src=url;
+}
+function download(content,filename,type){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();URL.revokeObjectURL(a.href);}
+function copyJSON(){
+  const data={cols,rows,grid,fill:fillColorInput.value,shadow:shadowColorInput.value,radius:radiusInput.value,gap:gapInput.value,shadowOffsetX,shadowOffsetY};
+  navigator.clipboard.writeText(JSON.stringify(data)).then(()=>alert('Copied!'));
+}
+
+// ═══════════════════════════════════════════
+// LIVE CONTROLS
+// ═══════════════════════════════════════════
+document.getElementById('threshold').addEventListener('input',convertImage);
+document.getElementById('uploadCols').addEventListener('change',convertImage);
+document.getElementById('uploadRows').addEventListener('change',convertImage);
+document.getElementById('detectMode').addEventListener('change',convertImage);
+fillColorInput.addEventListener('input',fullRender);
+shadowColorInput.addEventListener('input',fullRender);
+radiusInput.addEventListener('input',renderPreview);
+gapInput.addEventListener('input',renderPreview);
+document.addEventListener('keydown',(e)=>{if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;if(e.key==='b')setTool('paint');if(e.key==='e')setTool('erase');});
+document.getElementById('browseOverlay').addEventListener('click',(e)=>{if(e.target===e.currentTarget)closeBrowse();});
+</script>
+
+</body>
+</html>

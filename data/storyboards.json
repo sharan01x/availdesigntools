@@ -1,0 +1,147 @@
+[
+  {
+    "id": "storyboard-1773325044642-n09hm7pzb",
+    "title": "Dog Story",
+    "concept": "A dog sits bored and still watching the door. Then suddenly his ears perk up when he hears something outside. \"Is it my human? Is it? Is it?\" it seems to wonder. Then, the keys jingle in the door and the door opens. \"Yay! It IS my human! I'm SOOO HAPPY he's home!\"",
+    "shots": [
+      {
+        "id": 1,
+        "title": "Lonely Dog Waiting",
+        "description": "A brown and white medium-sized dog with floppy ears sits motionless on a hardwood floor near a white door. The dog looks dejected, chin resting on its front paws, eyes fixed intently on the door with a patient, slightly sad expression.",
+        "visualPrompt": "Black and white storyboard sketch of a sad dog sitting by a door, side profile view",
+        "imageUrl": "/api/media/image/1773324825246-r6ve33jr5.jpg",
+        "clipUrls": [
+          {
+            "url": "/api/media/video/1773325045086-db91rc0rh.mp4",
+            "createdAt": "2026-03-12T14:17:25.546Z"
+          }
+        ],
+        "selectedClipIndex": 0
+      },
+      {
+        "id": 2,
+        "title": "Ears Perking Up",
+        "description": "The brown and white dog's ears suddenly stand straight up, alert and pointed. His entire body becomes tense and still, with an intense listening posture. His eyes are wide and focused on the door, capturing a moment of anticipation and excitement.",
+        "visualPrompt": "Black and white storyboard sketch showing dog's ears suddenly standing up, close-up view",
+        "imageUrl": "/api/media/image/1773324838042-dg0c7q50g.jpg",
+        "clipUrls": [
+          {
+            "url": "/api/media/video/1773325018698-upumb2iq3.mp4",
+            "createdAt": "2026-03-12T14:16:59.482Z"
+          }
+        ],
+        "selectedClipIndex": 0
+      },
+      {
+        "id": 3,
+        "title": "Keys in Lock",
+        "description": "Close-up of a hand with keys jingling and inserting into the door lock. No dog in this shot. ",
+        "visualPrompt": "Black and white storyboard sketch of keys entering a door lock, with dog's ears visible at bottom of frame",
+        "imageUrl": "/api/media/image/1773324978153-o25um9bo3.jpg"
+      },
+      {
+        "id": 4,
+        "title": "Joyful Reunion",
+        "description": "The door opens and the brown and white dog is now in full excitement mode - tail wagging wildly, front paws slightly lifted, mouth open in a happy 'smile', ready to jump and greet his returning human.",
+        "visualPrompt": "Black and white storyboard sketch of an excited dog leaping towards an opening door",
+        "imageUrl": "/api/media/image/1773324995931-dm7alva80.jpg"
+      }
+    ],
+    "videoStylePrompt": "Cinematic style, smooth camera movements, professional lighting, high quality video production.",
+    "createdAt": "2026-03-12T14:17:24.642Z",
+    "updatedAt": "2026-03-12T14:17:28.222Z"
+  },
+  {
+    "id": "storyboard-1773321330397-rbcw5ch2d",
+    "title": "Cat on a Sill",
+    "concept": "A 3 panel story: A cat sitting on a window sill staring out onto the yard. A spaceship lands on the street in front of the yard. The cat licks its lips, almost bored.",
+    "shots": [
+      {
+        "id": 1,
+        "title": "Cat Window Perch",
+        "description": "Close-up shot of a sleek, relaxed cat sitting on a sun-drenched window sill, looking out through slightly dusty window panes. The cat appears calm and disinterested, with a serene suburban neighborhood visible in the background.",
+        "visualPrompt": "Black and white sketch of a cat sitting on a window sill, profile view, simple window frame in background",
+        "imageUrl": "/api/media/image/1773321349728-0e2rojpcu.jpg",
+        "clipUrls": [
+          {
+            "url": "/api/media/video/1773321368085-xklhb1efd.mp4",
+            "createdAt": "2026-03-12T13:16:08.216Z"
+          }
+        ],
+        "selectedClipIndex": 0
+      },
+      {
+        "id": 2,
+        "title": "Unexpected Landing",
+        "description": "Wide shot revealing a residential street with a perfectly manicured lawn. A sleek, metallic spaceship dramatically lands in the middle of the street, creating a sharp contrast with the mundane suburban setting. Dust and small debris kick up around the landing site.",
+        "visualPrompt": "Storyboard sketch of a spaceship landing on a suburban street, geometric spacecraft next to typical houses",
+        "imageUrl": "/api/media/image/1773321391863-u6d9b6shf.jpg",
+        "clipUrls": [
+          {
+            "url": "/api/media/video/1773321419225-xmi1p33ou.mp4",
+            "createdAt": "2026-03-12T13:16:59.585Z"
+          }
+        ],
+        "selectedClipIndex": 0
+      },
+      {
+        "id": 3,
+        "title": "Feline Indifference",
+        "description": "Close-up of the cat's face, tongue slightly extended in a casual lick, eyes still focused outward. The spaceship is partially visible in the background, but the cat appears completely unimpressed and unbothered by the extraordinary event.",
+        "visualPrompt": "Black and white sketch of cat's face, tongue out, spaceship blurred in background, minimal detail",
+        "imageUrl": "/api/media/image/1773321405985-fl2myqrtz.jpg",
+        "clipUrls": [
+          {
+            "url": "/api/media/video/1773321442258-4qy1vgtba.mp4",
+            "createdAt": "2026-03-12T13:17:22.671Z"
+          }
+        ],
+        "selectedClipIndex": 0
+      }
+    ],
+    "videoStylePrompt": "Cinematic style, smooth camera movements, professional lighting, high quality video production.",
+    "createdAt": "2026-03-12T13:15:30.397Z",
+    "updatedAt": "2026-03-12T13:17:49.529Z"
+  },
+  {
+    "id": "storyboard-1773247886941-hjwhqimv4",
+    "title": "Writers Block",
+    "concept": "A 4 panel story that begins with the shot of a write sitting at her desk sipping some coffee while looking out the window. Suddenly, inspiration strikes her and she smiles at the thought of what she's going to write. Then she starts typing away at her laptop. A shot of her screen shows her partially typed out sentence, \"I will always...\"",
+    "shots": [
+      {
+        "id": 1,
+        "title": "Writer's Contemplation",
+        "description": "Medium shot of a female writer sitting at her desk near a window. She's wearing comfortable clothing, holding a steaming coffee mug. Soft morning light filters through the window, casting gentle shadows. Her expression is initially pensive, gazing out the window with a distant look.",
+        "visualPrompt": "Black and white sketch of a woman sitting at a wooden desk, coffee mug in hand, looking pensively out a window",
+        "imageUrl": "/api/media/image/1773259530211-wcjpi6p42.jpg",
+        "videoUrl": "https://replicate.delivery/xezq/QM8Wjo9DRmpDD1tVFMA4Obx5tkxFHRKjj9LEZOvIieflS1PWA/output.mp4"
+      },
+      {
+        "id": 2,
+        "title": "Moment of Inspiration",
+        "description": "Close-up on the writer's face as a sudden spark of inspiration crosses her features. Her eyes brighten, and a knowing smile slowly spreads across her face. The background blurs slightly to emphasize her internal moment of creative revelation.",
+        "visualPrompt": "Storyboard sketch showing a close-up of a woman's face with a subtle, inspired smile emerging",
+        "imageUrl": "/api/media/image/1773259555152-4wt0h41tt.jpg",
+        "videoUrl": "https://replicate.delivery/xezq/toYwyTPrHhbdBB1ctrLuvquEISeE65mbXrFmasm6fLKcU1PWA/output.mp4"
+      },
+      {
+        "id": 3,
+        "title": "Typing Begins",
+        "description": "Medium shot of the writer's hands hovering over the laptop keyboard. Her fingers start to move with purpose and energy, typing quickly. The laptop screen is visible, with the room around her slightly out of focus to draw attention to her writing.",
+        "visualPrompt": "Sketch of hands positioned over a laptop keyboard, fingers mid-typing",
+        "imageUrl": "/api/media/image/1773259575602-oas0rzpxr.jpg",
+        "videoUrl": "https://replicate.delivery/xezq/zXTLQq8sev2kb6WbDfY7tVxPH1GLiKIFRPm0jpwxEdyAa1PWA/output.mp4"
+      },
+      {
+        "id": 4,
+        "title": "Partial Sentence",
+        "description": "Close-up of the laptop screen showing a sentence being typed out: 'I will always...' The camera slowly zooms in to show the sentence.",
+        "visualPrompt": "Storyboard close-up of a laptop screen with typed text 'I will always...' and a blinking cursor",
+        "imageUrl": "/api/media/image/1773259598215-4msoxj79o.jpg",
+        "videoUrl": "https://replicate.delivery/xezq/4ieMIYff2qXZTpmtUGXonSnPOFu3uY97ybtCy2NcnGlb7qfYB/output.mp4"
+      }
+    ],
+    "createdAt": "2026-03-11T16:51:26.941Z",
+    "updatedAt": "2026-03-11T20:06:43.331Z"
+  }
+]

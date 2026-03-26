@@ -1,0 +1,5 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "openwork",
+  "model": "openrouter/z-ai/glm-5"
+}
