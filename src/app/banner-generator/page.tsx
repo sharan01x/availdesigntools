@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import BannerCanvas, { type BannerConfig, type BackgroundStyle } from '@/components/BannerCanvas';
 
@@ -35,6 +35,7 @@ export default function BannerGeneratorPage() {
   
   const [imagePrompt, setImagePrompt] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const bannerConfig: BannerConfig = {
@@ -72,6 +73,42 @@ export default function BannerGeneratorPage() {
     };
     reader.readAsDataURL(file);
   }, []);
+  
+  const handleGeneratePrompt = async () => {
+    if ((!heading.trim() && !bodyCopy.trim()) || isGeneratingPrompt) {
+      return;
+    }
+    
+    setIsGeneratingPrompt(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/generate-banner-image-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          heading: heading.trim(),
+          bodyCopy: bodyCopy.trim(),
+        }),
+      });
+      
+      const data = await parseApiResponse(response);
+      
+      if (!response.ok || !data.success) {
+        throw new Error((data.error as string) || 'Failed to generate image prompt');
+      }
+      
+      if (!data.prompt) {
+        throw new Error('Missing prompt from generation response');
+      }
+      
+      setImagePrompt(data.prompt as string);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsGeneratingPrompt(false);
+    }
+  };
   
   const handleGenerateImage = async () => {
     if (!imagePrompt.trim() || isGeneratingImage) {
@@ -124,6 +161,16 @@ export default function BannerGeneratorPage() {
     link.click();
     document.body.removeChild(link);
   }, []);
+  
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if ((heading.trim() || bodyCopy.trim()) && !imagePrompt) {
+        handleGeneratePrompt();
+      }
+    }, 1000);
+    
+    return () => clearTimeout(debounceTimer);
+  }, [heading, bodyCopy]);
   
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
@@ -310,12 +357,27 @@ export default function BannerGeneratorPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="imagePrompt" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Image Prompt
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGeneratePrompt}
+                      disabled={(!heading.trim() && !bodyCopy.trim()) || isGeneratingPrompt}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:text-zinc-400 disabled:no-underline"
+                      title="Auto-generate prompt from heading and body text"
+                    >
+                      {isGeneratingPrompt ? 'Generating...' : '✨ Auto-generate from text'}
+                    </button>
+                  </div>
                   <textarea
+                    id="imagePrompt"
                     value={imagePrompt}
                     onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder="Describe the supporting image you want to generate..."
+                    placeholder="Describe the supporting image you want to generate, or click 'Auto-generate from text'..."
                     maxLength={500}
-                    rows={2}
+                    rows={3}
                     className="brand-focus w-full p-3 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none"
                   />
                   <div className="flex gap-2">
