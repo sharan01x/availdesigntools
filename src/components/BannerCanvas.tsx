@@ -20,8 +20,11 @@ export interface BannerConfig {
   subheading: string;
   bodyCopy: string;
   ctaText: string;
-  logos: string[]; // URLs or data URIs
-  supportingImage: string | null; // URL or data URI
+  logos: string[];
+  supportingImage: string | null;
+  imageContrast?: number;
+  imageBrightness?: number;
+  transparentColor?: string | null;
 }
 
 interface BannerCanvasProps {
@@ -223,55 +226,83 @@ export default function BannerCanvas({ config, onCanvasReady }: BannerCanvasProp
         try {
           const supportingImg = await loadImage(config.supportingImage);
           
-          if (isBlue) {
-            // Full right side for blue background
-            const imgX = rightZoneX;
-            const imgY = 0;
-            const imgW = rightZoneWidth;
-            const imgH = BANNER_HEIGHT;
-            
-            // Calculate aspect-fit dimensions
-            const imgAspect = supportingImg.width / supportingImg.height;
-            const zoneAspect = imgW / imgH;
-            
-            let drawWidth, drawHeight, drawX, drawY;
-            
-            if (imgAspect > zoneAspect) {
-              drawHeight = imgH;
-              drawWidth = imgH * imgAspect;
-              drawX = BANNER_WIDTH - drawWidth;
-              drawY = imgY;
-            } else {
-              drawWidth = imgW;
-              drawHeight = imgW / imgAspect;
-              drawX = BANNER_WIDTH - drawWidth;
-              drawY = imgY + (imgH - drawHeight) / 2;
-            }
-            
-            ctx.drawImage(supportingImg, drawX, drawY, drawWidth, drawHeight);
+          // Calculate positioning (same for both blue and white)
+          const imgX = rightZoneX;
+          const imgY = 0;
+          const imgW = rightZoneWidth;
+          const imgH = BANNER_HEIGHT;
+          
+          const imgAspect = supportingImg.width / supportingImg.height;
+          const zoneAspect = imgW / imgH;
+          
+          let drawWidth, drawHeight, drawX, drawY;
+          
+          if (imgAspect > zoneAspect) {
+            drawHeight = imgH;
+            drawWidth = imgH * imgAspect;
+            drawX = BANNER_WIDTH - drawWidth;
+            drawY = imgY;
           } else {
-            const imgX = rightZoneX;
-            const imgY = 0;
-            const imgW = rightZoneWidth;
-            const imgH = BANNER_HEIGHT;
+            drawWidth = imgW;
+            drawHeight = imgW / imgAspect;
+            drawX = BANNER_WIDTH - drawWidth;
+            drawY = imgY + (imgH - drawHeight) / 2;
+          }
+          
+          // Apply image adjustments if needed
+          const hasContrast = config.imageContrast !== undefined && config.imageContrast !== 0;
+          const hasBrightness = config.imageBrightness !== undefined && config.imageBrightness !== 0;
+          const hasTransparency = config.transparentColor && config.transparentColor !== null;
+          
+          if (hasContrast || hasBrightness || hasTransparency) {
+            const processCanvas = document.createElement('canvas');
+            processCanvas.width = drawWidth;
+            processCanvas.height = drawHeight;
+            const processCtx = processCanvas.getContext('2d', { willReadFrequently: true });
             
-            const imgAspect = supportingImg.width / supportingImg.height;
-            const zoneAspect = imgW / imgH;
-            
-            let drawWidth, drawHeight, drawX, drawY;
-            
-            if (imgAspect > zoneAspect) {
-              drawHeight = imgH;
-              drawWidth = imgH * imgAspect;
-              drawX = BANNER_WIDTH - drawWidth;
-              drawY = imgY;
+            if (processCtx) {
+              processCtx.drawImage(supportingImg, 0, 0, drawWidth, drawHeight);
+              const imageData = processCtx.getImageData(0, 0, drawWidth, drawHeight);
+              const data = imageData.data;
+              
+              const contrastFactor = hasContrast ? (259 * (config.imageContrast! + 255)) / (255 * (259 - config.imageContrast!)) : 1;
+              const brightnessAdjust = hasBrightness ? config.imageBrightness! : 0;
+              
+              let transparentR = 255, transparentG = 255, transparentB = 255;
+              if (hasTransparency && config.transparentColor) {
+                const hex = config.transparentColor.replace('#', '');
+                transparentR = Number.parseInt(hex.substring(0, 2), 16);
+                transparentG = Number.parseInt(hex.substring(2, 4), 16);
+                transparentB = Number.parseInt(hex.substring(4, 6), 16);
+              }
+              
+              const colorTolerance = 30;
+              
+              for (let i = 0; i < data.length; i += 4) {
+                if (hasContrast || hasBrightness) {
+                  data[i] = Math.max(0, Math.min(255, contrastFactor * (data[i] - 128) + 128 + brightnessAdjust));
+                  data[i + 1] = Math.max(0, Math.min(255, contrastFactor * (data[i + 1] - 128) + 128 + brightnessAdjust));
+                  data[i + 2] = Math.max(0, Math.min(255, contrastFactor * (data[i + 2] - 128) + 128 + brightnessAdjust));
+                }
+                
+                if (hasTransparency) {
+                  const colorDistance = Math.sqrt(
+                    Math.pow(data[i] - transparentR, 2) +
+                    Math.pow(data[i + 1] - transparentG, 2) +
+                    Math.pow(data[i + 2] - transparentB, 2)
+                  );
+                  if (colorDistance < colorTolerance) {
+                    data[i + 3] = 0;
+                  }
+                }
+              }
+              
+              processCtx.putImageData(imageData, 0, 0);
+              ctx.drawImage(processCanvas, drawX, drawY);
             } else {
-              drawWidth = imgW;
-              drawHeight = imgW / imgAspect;
-              drawX = BANNER_WIDTH - drawWidth;
-              drawY = imgY + (imgH - drawHeight) / 2;
+              ctx.drawImage(supportingImg, drawX, drawY, drawWidth, drawHeight);
             }
-            
+          } else {
             ctx.drawImage(supportingImg, drawX, drawY, drawWidth, drawHeight);
           }
         } catch {

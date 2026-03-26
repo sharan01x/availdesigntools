@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import BannerCanvas, { type BannerConfig, type BackgroundStyle } from '@/components/BannerCanvas';
-import ImagePreview from '@/components/ImagePreview';
 
 async function parseApiResponse(response: Response): Promise<Record<string, unknown>> {
   const rawBody = await response.text();
@@ -39,7 +38,14 @@ export default function BannerGeneratorPage() {
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  // Image adjustment settings (applied directly to canvas)
+  const [imageContrast, setImageContrast] = useState(0);
+  const [imageBrightness, setImageBrightness] = useState(0);
+  const [transparentColor, setTransparentColor] = useState<string | null>(null);
+  const [enableTransparency, setEnableTransparency] = useState(false);
+  
+  // Debounced values for canvas rendering
+  const [debouncedConfig, setDebouncedConfig] = useState<BannerConfig | null>(null);
   
   const bannerConfig: BannerConfig = {
     backgroundStyle,
@@ -49,6 +55,9 @@ export default function BannerGeneratorPage() {
     ctaText,
     logos,
     supportingImage,
+    imageContrast,
+    imageBrightness,
+    transparentColor: enableTransparency ? transparentColor : null,
   };
   
   const handleLogoUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,31 +151,16 @@ export default function BannerGeneratorPage() {
         throw new Error('Missing image URL from generation response');
       }
       
-      const url = data.imageUrl as string;
-      setGeneratedImageUrl(url);
-      setSupportingImage(url);
+      setSupportingImage(data.imageUrl as string);
+      // Reset adjustments when new image is generated
+      setImageContrast(0);
+      setImageBrightness(0);
+      setEnableTransparency(false);
+      setTransparentColor(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsGeneratingImage(false);
-    }
-  };
-  
-  const handleSaveToGallery = async (processedImageUrl: string, size: number) => {
-    const response = await fetch('/api/images', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filename: `banner-image-${Date.now()}.png`,
-        url: processedImageUrl,
-        size,
-      }),
-    });
-    
-    const data = await parseApiResponse(response);
-    
-    if (!response.ok || !data.success) {
-      throw new Error((data.error as string) || 'Failed to save image');
     }
   };
   
@@ -194,6 +188,26 @@ export default function BannerGeneratorPage() {
     
     return () => clearTimeout(debounceTimer);
   }, [heading, bodyCopy]);
+  
+  // Debounce canvas updates to prevent re-rendering on every keystroke
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      setDebouncedConfig({
+        backgroundStyle,
+        heading,
+        subheading,
+        bodyCopy,
+        ctaText,
+        logos,
+        supportingImage,
+        imageContrast,
+        imageBrightness,
+        transparentColor: enableTransparency ? transparentColor : null,
+      });
+    }, 1000);
+    
+    return () => clearTimeout(debounceTimer);
+  }, [backgroundStyle, heading, subheading, bodyCopy, ctaText, logos, supportingImage, imageContrast, imageBrightness, transparentColor, enableTransparency]);
   
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
@@ -227,8 +241,28 @@ export default function BannerGeneratorPage() {
           </p>
         </div>
         
+        <div className="mb-8">
+          <BannerCanvas
+            config={debouncedConfig || bannerConfig}
+            onCanvasReady={handleCanvasReady}
+          />
+          
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={!canvasRef.current}
+              className="brand-button px-6 py-3 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium rounded-lg"
+            >
+              Download Banner
+            </button>
+          </div>
+        </div>
+        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Basic Elements</h3>
+            
             <div className="space-y-2">
               <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 Background Style
@@ -359,73 +393,6 @@ export default function BannerGeneratorPage() {
               </label>
             </div>
             
-            {/* Supporting image */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Supporting Image
-              </label>
-              
-              {supportingImage ? (
-                <div className="relative group">
-                  <div className="w-full h-32 bg-zinc-100 dark:bg-zinc-700 rounded-lg overflow-hidden">
-                    <img src={supportingImage} alt="Supporting" className="w-full h-full object-cover" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSupportingImage(null)}
-                    className="absolute top-2 right-2 px-2 py-1 bg-red-500 text-white rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="imagePrompt" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      Image Prompt
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleGeneratePrompt}
-                      disabled={(!heading.trim() && !bodyCopy.trim()) || isGeneratingPrompt}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:text-zinc-400 disabled:no-underline"
-                      title="Auto-generate prompt from heading and body text"
-                    >
-                      {isGeneratingPrompt ? 'Generating...' : '✨ Auto-generate from text'}
-                    </button>
-                  </div>
-                  <textarea
-                    id="imagePrompt"
-                    value={imagePrompt}
-                    onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder="Describe the supporting image you want to generate, or click 'Auto-generate from text'..."
-                    maxLength={500}
-                    rows={3}
-                    className="brand-focus w-full p-3 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleGenerateImage}
-                      disabled={!imagePrompt.trim() || isGeneratingImage}
-                      className="brand-button px-4 py-2 disabled:bg-zinc-400 disabled:cursor-not-allowed text-sm rounded-lg"
-                    >
-                      {isGeneratingImage ? 'Generating...' : 'Generate Image'}
-                    </button>
-                    <label className="px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors text-sm text-zinc-700 dark:text-zinc-300">
-                      Upload Image
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleSupportingImageUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-            </div>
-            
             {error && (
               <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <p className="text-red-600 dark:text-red-400">{error}</p>
@@ -433,39 +400,128 @@ export default function BannerGeneratorPage() {
             )}
           </div>
           
-          {/* Right column: Canvas preview */}
-          <div className="space-y-4">
-            <div className="sticky top-4">
-              <BannerCanvas
-                config={bannerConfig}
-                onCanvasReady={handleCanvasReady}
-              />
-              
-              <div className="mt-4 flex justify-end">
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Supporting Image</h3>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label htmlFor="imagePrompt" className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Image Prompt
+                </label>
                 <button
                   type="button"
-                  onClick={handleDownload}
-                  disabled={!canvasRef.current}
-                  className="brand-button px-6 py-3 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium rounded-lg"
+                  onClick={handleGeneratePrompt}
+                  disabled={(!heading.trim() && !bodyCopy.trim()) || isGeneratingPrompt}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:text-zinc-400 disabled:no-underline"
+                  title="Auto-generate prompt from heading and body text"
                 >
-                  Download Banner
+                  {isGeneratingPrompt ? 'Generating...' : '✨ Auto-generate from text'}
                 </button>
               </div>
-              
-              {/* Image adjustment tools for branded supporting image */}
-              {generatedImageUrl && (
-                <div className="mt-6 border-t border-zinc-200 dark:border-zinc-800 pt-6">
-                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">Supporting Image Adjustments</h3>
-                  <ImagePreview
-                    imageUrl={generatedImageUrl}
-                    isLoading={isGeneratingImage}
-                    isBranded={true}
-                    onSaveToGallery={handleSaveToGallery}
-                    aspectRatioClass="aspect-square"
+              <textarea
+                id="imagePrompt"
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
+                placeholder="Describe the supporting image you want to generate, or click 'Auto-generate from text'..."
+                maxLength={500}
+                rows={3}
+                className="brand-focus w-full p-3 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleGenerateImage}
+                  disabled={!imagePrompt.trim() || isGeneratingImage}
+                  className="brand-button px-4 py-2 disabled:bg-zinc-400 disabled:cursor-not-allowed text-sm rounded-lg"
+                >
+                  {isGeneratingImage ? 'Generating...' : 'Generate Image'}
+                </button>
+                <label className="px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors text-sm text-zinc-700 dark:text-zinc-300">
+                  Upload Image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSupportingImageUpload}
+                    className="hidden"
                   />
-                </div>
-              )}
+                </label>
+                {supportingImage && (
+                  <button
+                    type="button"
+                    onClick={() => setSupportingImage(null)}
+                    className="px-4 py-2 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm"
+                  >
+                    Remove Image
+                  </button>
+                )}
+              </div>
             </div>
+            
+            {/* Image adjustment controls */}
+            {supportingImage && (
+              <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6 space-y-4">
+                <h4 className="text-md font-semibold text-zinc-900 dark:text-zinc-100">Image Adjustments</h4>
+                
+                <div className="grid gap-3">
+                  <label className="text-xs text-zinc-600 dark:text-zinc-400">
+                    Contrast ({imageContrast})
+                    <input
+                      type="range"
+                      min={-100}
+                      max={100}
+                      value={imageContrast}
+                      onChange={(e) => setImageContrast(Number(e.target.value))}
+                      className="mt-2 w-full"
+                    />
+                  </label>
+                  <label className="text-xs text-zinc-600 dark:text-zinc-400">
+                    Brightness ({imageBrightness})
+                    <input
+                      type="range"
+                      min={-100}
+                      max={100}
+                      value={imageBrightness}
+                      onChange={(e) => setImageBrightness(Number(e.target.value))}
+                      className="mt-2 w-full"
+                    />
+                  </label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-zinc-600 dark:text-zinc-400">Make Background Transparent</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={enableTransparency}
+                      onClick={() => setEnableTransparency((prev) => !prev)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        enableTransparency ? 'brand-toggle-on' : 'bg-zinc-400 dark:bg-zinc-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          enableTransparency ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {enableTransparency && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-zinc-600 dark:text-zinc-400">
+                        Color to Make Transparent
+                        <div className="flex items-center gap-2 mt-2">
+                          <input
+                            type="color"
+                            value={transparentColor || '#FFFFFF'}
+                            onChange={(e) => setTransparentColor(e.target.value)}
+                            className="w-10 h-8 border border-zinc-300 rounded cursor-pointer"
+                          />
+                          <span className="text-xs text-zinc-500">Click to pick color</span>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>
