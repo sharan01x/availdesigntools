@@ -16,6 +16,11 @@ const tools = [
     href: '/pixel-generator',
   },
   {
+    name: 'Animated Filler Post Creator',
+    description: 'Create Full HD halftone circle animations and export video.',
+    href: '/tools/halftone-background.html',
+  },
+  {
     name: 'Storyboard Generator',
     description: 'Break down video concepts into visual storyboards with AI-generated shots and descriptions.',
     href: '/video-generator',
