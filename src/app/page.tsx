@@ -16,6 +16,12 @@ const tools = [
     href: '/pixel-generator',
   },
   {
+    name: 'Social Media Video Generator',
+    description: 'Generate looping full HD motion graphics with halftone animations, text overlays, and export ready for social media.',
+    href: '/tools/halftone-background.html',
+    external: true,
+  },
+  {
     name: 'Storyboard Generator',
     description: 'Break down video concepts into visual storyboards with AI-generated shots and descriptions.',
     href: '/video-generator',
@@ -57,12 +63,21 @@ export default function Home() {
             >
               <h3 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-3">{tool.name}</h3>
               <p className="text-zinc-600 dark:text-zinc-400 mb-6">{tool.description}</p>
-              <Link
-                href={tool.href}
-                className="brand-link inline-flex items-center font-medium"
-              >
-                Open Tool →
-              </Link>
+              {'external' in tool ? (
+                <a
+                  href={tool.href}
+                  className="brand-link inline-flex items-center font-medium"
+                >
+                  Open Tool →
+                </a>
+              ) : (
+                <Link
+                  href={tool.href}
+                  className="brand-link inline-flex items-center font-medium"
+                >
+                  Open Tool →
+                </Link>
+              )}
             </article>
           ))}
         </section>
