@@ -16,7 +16,7 @@ const tools = [
     href: '/pixel-generator',
   },
   {
-    name: 'Halftone Animation Generator',
+    name: 'Animated Filler Post Creator',
     description: 'Create Full HD halftone circle animations and export video.',
     href: '/tools/halftone-background.html',
   },
