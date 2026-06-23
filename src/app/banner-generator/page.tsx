@@ -32,6 +32,7 @@ export default function BannerGeneratorPage() {
   const [ctaText, setCtaText] = useState('');
   const [logos, setLogos] = useState<string[]>([]);
   const [supportingImage, setSupportingImage] = useState<string | null>(null);
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
   
   const [imagePrompt, setImagePrompt] = useState('');
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -85,6 +86,21 @@ export default function BannerGeneratorPage() {
     };
     reader.readAsDataURL(file);
   }, []);
+
+  const handleReferenceImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = () => {
+      setReferenceImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const removeReferenceImage = useCallback(() => {
+    setReferenceImage(null);
+  }, []);
   
   const handleGeneratePrompt = async () => {
     if ((!heading.trim() && !bodyCopy.trim()) || isGeneratingPrompt) {
@@ -131,14 +147,20 @@ export default function BannerGeneratorPage() {
     setError(null);
     
     try {
+      const requestBody: Record<string, unknown> = {
+        prompt: imagePrompt.trim(),
+        branded: true,
+        imageSize: 'square_min',
+      };
+
+      if (referenceImage) {
+        requestBody.referenceImage = referenceImage;
+      }
+
       const response = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: imagePrompt.trim(),
-          branded: true,
-          imageSize: 'square_min',
-        }),
+        body: JSON.stringify(requestBody),
       });
       
       const data = await parseApiResponse(response);
@@ -178,16 +200,6 @@ export default function BannerGeneratorPage() {
     link.click();
     document.body.removeChild(link);
   }, []);
-  
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      if ((heading.trim() || bodyCopy.trim()) && !imagePrompt) {
-        handleGeneratePrompt();
-      }
-    }, 1000);
-    
-    return () => clearTimeout(debounceTimer);
-  }, [heading, bodyCopy]);
   
   // Debounce canvas updates to prevent re-rendering on every keystroke
   useEffect(() => {
@@ -415,7 +427,7 @@ export default function BannerGeneratorPage() {
                   className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:text-zinc-400 disabled:no-underline"
                   title="Auto-generate prompt from heading and body text"
                 >
-                  {isGeneratingPrompt ? 'Generating...' : '✨ Auto-generate from text'}
+                  {isGeneratingPrompt ? 'Generating...' : 'Auto-generate from text'}
                 </button>
               </div>
               <textarea
@@ -427,7 +439,7 @@ export default function BannerGeneratorPage() {
                 rows={3}
                 className="brand-focus w-full p-3 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 resize-none"
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={handleGenerateImage}
@@ -445,6 +457,15 @@ export default function BannerGeneratorPage() {
                     className="hidden"
                   />
                 </label>
+                <label className="px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors text-sm text-zinc-700 dark:text-zinc-300">
+                  Upload Reference Image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleReferenceImageUpload}
+                    className="hidden"
+                  />
+                </label>
                 {supportingImage && (
                   <button
                     type="button"
@@ -455,6 +476,25 @@ export default function BannerGeneratorPage() {
                   </button>
                 )}
               </div>
+              {referenceImage && (
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">Reference:</span>
+                  <div className="relative group">
+                    <img
+                      src={referenceImage}
+                      alt="Reference"
+                      className="w-16 h-16 object-cover rounded border border-zinc-200 dark:border-zinc-700"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeReferenceImage}
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Image adjustment controls */}

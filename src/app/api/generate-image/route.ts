@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Replicate from 'replicate';
-import { downloadAndStoreMedia } from '@/lib/blob-storage';
+import { downloadAndStoreMedia, storeBuffer } from '@/lib/blob-storage';
 
 export const runtime = 'nodejs';
 
@@ -8,7 +8,7 @@ const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY || '',
 });
 
-const MODEL = 'xai/grok-imagine-image';
+const MODEL = 'black-forest-labs/flux-2-pro';
 
 const PROMPT_STYLE_GUIDE =
   'Photorealistic subject detail with strict graphic tonal rendering. Duotone image using only white and #006BF4. Transparent background - subject isolated on alpha channel. All shadows and midtones must be created exclusively using clearly visible halftone dot patterns in #006BF4 over white. No smooth gradients. No soft tonal blending. No airbrushing. No grayscale shading. Large, visible circular dot matrix with variable dot size to create depth (newspaper-style screen print effect). High-contrast lighting. Crisp edges. Sharp focus. Modern bold photographic poster aesthetic with mandatory halftone dithering.';
@@ -77,7 +77,8 @@ async function extractImageUrl(output: unknown): Promise<string | null> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, branded = true, imageSize = 'square_min', storyboard = false } = await request.json();
+    const body = await request.json();
+    const { prompt, branded = true, imageSize = 'square_min', storyboard = false, referenceImage } = body;
 
     if (!prompt || typeof prompt !== 'string') {
       return NextResponse.json({ success: false, error: 'Prompt is required' }, { status: 400 });
@@ -100,12 +101,41 @@ export async function POST(request: NextRequest) {
       styleGuide ? `Style instructions: ${styleGuide}` : null,
     ].filter(Boolean).join('\n\n');
 
-    const output = await replicate.run(MODEL, {
-      input: {
-        prompt: finalPrompt,
-        aspect_ratio: aspectRatio,
-      },
-    });
+    // Handle reference image: convert data URL to stored URL if needed
+    let referenceImageUrl: string | undefined;
+
+    if (referenceImage && typeof referenceImage === 'string') {
+      if (referenceImage.startsWith('data:')) {
+        // Data URL — convert to buffer and store
+        const matches = referenceImage.match(/^data:image\/(\w+);base64,(.+)$/);
+        if (matches) {
+          const extension = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+          const base64Data = matches[2];
+          const buffer = Buffer.from(base64Data, 'base64');
+          referenceImageUrl = await storeBuffer(buffer, 'image', extension);
+        } else {
+          return NextResponse.json(
+            { success: false, error: 'Invalid data URL format for reference image' },
+            { status: 400 }
+          );
+        }
+      } else if (referenceImage.startsWith('http://') || referenceImage.startsWith('https://')) {
+        // Already a URL — pass directly
+        referenceImageUrl = referenceImage;
+      }
+    }
+
+    // Build input for Replicate
+    const input: Record<string, unknown> = {
+      prompt: finalPrompt,
+      aspect_ratio: aspectRatio,
+    };
+
+    if (referenceImageUrl) {
+      input.image = referenceImageUrl;
+    }
+
+    const output = await replicate.run(MODEL, { input });
 
     const imageUrl = await extractImageUrl(output);
 
