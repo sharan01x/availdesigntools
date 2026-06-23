@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Replicate from 'replicate';
-import { downloadAndStoreMedia, storeBuffer } from '@/lib/blob-storage';
+import { downloadAndStoreMedia } from '@/lib/blob-storage';
 
 export const runtime = 'nodejs';
 
@@ -101,38 +101,22 @@ export async function POST(request: NextRequest) {
       styleGuide ? `Style instructions: ${styleGuide}` : null,
     ].filter(Boolean).join('\n\n');
 
-    // Handle reference image: convert data URL to stored URL if needed
-    let referenceImageUrl: string | undefined;
-
-    if (referenceImage && typeof referenceImage === 'string') {
-      if (referenceImage.startsWith('data:')) {
-        // Data URL — convert to buffer and store
-        const matches = referenceImage.match(/^data:image\/(\w+);base64,(.+)$/);
-        if (matches) {
-          const extension = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-          const base64Data = matches[2];
-          const buffer = Buffer.from(base64Data, 'base64');
-          referenceImageUrl = await storeBuffer(buffer, 'image', extension);
-        } else {
-          return NextResponse.json(
-            { success: false, error: 'Invalid data URL format for reference image' },
-            { status: 400 }
-          );
-        }
-      } else if (referenceImage.startsWith('http://') || referenceImage.startsWith('https://')) {
-        // Already a URL — pass directly
-        referenceImageUrl = referenceImage;
-      }
-    }
-
     // Build input for Replicate
+    // FLUX.2 pro uses `input_images` (array of up to 8) for reference images.
+    // Replicate accepts data URLs directly in input fields.
     const input: Record<string, unknown> = {
       prompt: finalPrompt,
       aspect_ratio: aspectRatio,
     };
 
-    if (referenceImageUrl) {
-      input.image = referenceImageUrl;
+    if (referenceImage && typeof referenceImage === 'string') {
+      if (referenceImage.startsWith('data:')) {
+        // Pass the data URL directly to Replicate — it accepts data URLs
+        input.input_images = [referenceImage];
+      } else if (referenceImage.startsWith('http://') || referenceImage.startsWith('https://')) {
+        // Already a remote URL — pass directly
+        input.input_images = [referenceImage];
+      }
     }
 
     const output = await replicate.run(MODEL, { input });
